@@ -6,10 +6,12 @@ export default function QRScanner() {
   const [scanning, setScanning] = useState(true);
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [itemStatus, setItemStatus] = useState("Отримано"); // Default status
+  const [quantity, setQuantity] = useState(1); // Default quantity
   const iframeRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbwtHpFqfsuVUjJ13bBN3kPexi3MNvaU-a_9bpNigPyl2v62oPXhWle17PBC7gDEA7up/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbxIkoQW-ZjIMovUB25kGVKDp_3ciCdg_dh0hv5Ss-mL8STsZCXx6WIdXzPgDN0ncT4Y/exec";
 
   useEffect(() => {
     if (scanning) {
@@ -23,7 +25,6 @@ export default function QRScanner() {
         (decodedText) => {
           setQrData(decodedText);
           setScanning(false);
-          sendToGoogleSheets(decodedText);
           scanner.clear();
         },
         (errorMessage) => {
@@ -43,7 +44,7 @@ export default function QRScanner() {
   }, [scanning]);
 
   // Form submission approach that bypasses CORS
-  const sendToGoogleSheets = (data) => {
+  const sendToGoogleSheets = () => {
     setStatus("Відправка даних...");
     setIsSubmitting(true);
     
@@ -57,7 +58,17 @@ export default function QRScanner() {
     const qrField = document.createElement("input");
     qrField.type = "hidden";
     qrField.name = "qrData";
-    qrField.value = data;
+    qrField.value = qrData;
+    
+    const statusField = document.createElement("input");
+    statusField.type = "hidden";
+    statusField.name = "itemStatus";
+    statusField.value = itemStatus;
+    
+    const quantityField = document.createElement("input");
+    quantityField.type = "hidden";
+    quantityField.name = "quantity";
+    quantityField.value = quantity;
     
     const timestampField = document.createElement("input");
     timestampField.type = "hidden";
@@ -66,6 +77,8 @@ export default function QRScanner() {
     
     // Append fields to form
     form.appendChild(qrField);
+    form.appendChild(statusField);
+    form.appendChild(quantityField);
     form.appendChild(timestampField);
     
     // Append form to document
@@ -87,6 +100,18 @@ export default function QRScanner() {
   const scanAgain = () => {
     setScanning(true);
     setStatus("");
+    setItemStatus("Отримано"); // Reset to default
+    setQuantity(1); // Reset to default
+  };
+
+  // Handle quantity change with validation
+  const handleQuantityChange = (e) => {
+    const value = parseInt(e.target.value);
+    if (!isNaN(value) && value > 0) {
+      setQuantity(value);
+    } else if (e.target.value === "") {
+      setQuantity("");
+    }
   };
 
   return (
@@ -110,15 +135,53 @@ export default function QRScanner() {
         <div className="result-container">
           <p className="result">✅ Відскановано: <span className="data">{qrData}</span></p>
           
+          <div className="options-container">
+            <div className="option-group">
+              <label htmlFor="itemStatus">Статус:</label>
+              <select 
+                id="itemStatus" 
+                value={itemStatus} 
+                onChange={(e) => setItemStatus(e.target.value)}
+                className="input-field"
+              >
+                <option value="Отримано">Отримано</option>
+                <option value="Видано">Видано</option>
+                <option value="Брак">Брак</option>
+              </select>
+            </div>
+            
+            <div className="option-group">
+              <label htmlFor="quantity">Кількість:</label>
+              <input 
+                id="quantity" 
+                type="number" 
+                min="1" 
+                value={quantity} 
+                onChange={handleQuantityChange}
+                className="input-field"
+              />
+            </div>
+          </div>
+          
           {status && <p className="status">{status}</p>}
           
-          <button 
-            className="scan-btn" 
-            onClick={scanAgain}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Відправка..." : "🔄 Сканувати ще раз"}
-          </button>
+          <div className="buttons-container">
+            <button 
+              className="submit-btn" 
+              onClick={sendToGoogleSheets}
+              disabled={isSubmitting || quantity === "" || quantity < 1}
+            >
+              {isSubmitting ? "Відправка..." : "📤 Відправити дані"}
+            </button>
+            
+            <button 
+              className="scan-btn" 
+              onClick={scanAgain}
+              disabled={isSubmitting}
+            >
+              🔄 Сканувати інший QR-код
+            </button>
+          </div>
         </div>
       )}
       
@@ -161,12 +224,62 @@ export default function QRScanner() {
           font-weight: normal;
           color: #4285f4;
         }
+        .options-container {
+          background-color: #fff;
+          border: 1px solid #e0e0e0;
+          border-radius: 6px;
+          padding: 15px;
+          margin: 15px 0;
+        }
+        .option-group {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 12px;
+        }
+        .option-group:last-child {
+          margin-bottom: 0;
+        }
+        label {
+          font-weight: 500;
+          color: #333;
+          margin-right: 10px;
+        }
+        .input-field {
+          flex: 1;
+          padding: 8px 12px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 16px;
+          max-width: 200px;
+        }
+        select.input-field {
+          background-color: white;
+        }
         .status {
           color: #4285f4;
           padding: 10px;
           background-color: #e8f0fe;
           border-radius: 4px;
           margin: 15px 0;
+        }
+        .buttons-container {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .submit-btn {
+          background-color: #4285f4;
+          color: white;
+          border: none;
+          padding: 12px 20px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+          transition: background-color 0.2s;
+        }
+        .submit-btn:hover {
+          background-color: #3367d6;
         }
         .scan-btn {
           background-color: #34a853;
@@ -175,15 +288,13 @@ export default function QRScanner() {
           padding: 12px 20px;
           border-radius: 4px;
           cursor: pointer;
-          margin-top: 15px;
           font-size: 16px;
           transition: background-color 0.2s;
-          min-width: 180px;
         }
         .scan-btn:hover {
           background-color: #2d9249;
         }
-        .scan-btn:disabled {
+        .submit-btn:disabled, .scan-btn:disabled {
           background-color: #a0a0a0;
           cursor: not-allowed;
         }
