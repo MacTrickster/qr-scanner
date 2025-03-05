@@ -23,10 +23,10 @@ export default function QRScanner() {
   }, [scanning]);
 
 const sendToGoogleSheets = async (data) => {
-  const proxyUrl = "https://2bb0d5e3-small-star-7d65.nazar-hnid.workers.dev/"; // Cloudflare Worker URL
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbx-tMKaoxoB2mPLH2mdk6fOAoxNTrXMRX39UTAeebpIMGzDGRqGcfI4IQoHatkdRULG/exec"; // Встав свій Google Apps Script URL
 
   try {
-    const response = await fetch(proxyUrl, {
+    const response = await fetch(scriptUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ qrData: data })
@@ -38,6 +38,7 @@ const sendToGoogleSheets = async (data) => {
     console.error("Помилка відправки даних:", error);
   }
 };
+
 
 
 
