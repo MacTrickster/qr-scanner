@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "dependencies": {
     "react": "^18.0.0",
-    "react-qr-reader": "^3.0.0",
-    "next": "^13.0.0"
+    "next": "^13.0.0",
+    "html5-qrcode": "^2.3.8"
   },
   "scripts": {
+    "vercel-build": "next build",
     "start": "next dev"
   }
 }
