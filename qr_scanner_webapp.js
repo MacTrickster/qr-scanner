@@ -22,16 +22,13 @@ export default function QRScanner() {
     }
   }, [scanning]);
 
- const sendToGoogleSheets = async (data) => {
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbxHRbQPY15bbHku92spxJYzTf-3MdyPf3QoijWdIbqrVCasvHFUB2c1Tw2VoZctPefv/exec"; // Встав свій Google Apps Script URL
-  const proxyUrl = "https://cors-anywhere.herokuapp.com/";
+const sendToGoogleSheets = async (data) => {
+  const proxyUrl = "https://2bb0d5e3-small-star-7d65.nazar-hnid.workers.dev/"; // Cloudflare Worker URL
 
   try {
-    const response = await fetch(proxyUrl + scriptUrl, {
+    const response = await fetch(proxyUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ qrData: data })
     });
 
@@ -41,6 +38,7 @@ export default function QRScanner() {
     console.error("Помилка відправки даних:", error);
   }
 };
+
 
 
 
