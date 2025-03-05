@@ -1,12 +1,15 @@
 import { Html5QrcodeScanner } from "html5-qrcode";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 
 export default function QRScanner() {
   const [qrData, setQrData] = useState("Скануй QR-код...");
   const [scanning, setScanning] = useState(true);
   const [status, setStatus] = useState("");
-  const [error, setError] = useState("");
-  const [submitMethod, setSubmitMethod] = useState("direct"); // "direct", "jsonp", or "image"
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const iframeRef = useRef(null);
+  
+  // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbwtHpFqfsuVUjJ13bBN3kPexi3MNvaU-a_9bpNigPyl2v62oPXhWle17PBC7gDEA7up/exec";
 
   useEffect(() => {
     if (scanning) {
@@ -39,92 +42,64 @@ export default function QRScanner() {
     }
   }, [scanning]);
 
-  const sendToGoogleSheets = async (data) => {
+  // Form submission approach that bypasses CORS
+  const sendToGoogleSheets = (data) => {
     setStatus("Відправка даних...");
-    setError("");
+    setIsSubmitting(true);
     
-    // Use the current selected submission method
-    if (submitMethod === "direct") {
-      await sendDirect(data);
-    } else if (submitMethod === "jsonp") {
-      sendJsonp(data);
-    } else {
-      sendImageBased(data);
-    }
+    // Create a form element
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = scriptUrl;
+    form.target = "hidden-iframe"; // Target the hidden iframe
+    
+    // Add form fields
+    const qrField = document.createElement("input");
+    qrField.type = "hidden";
+    qrField.name = "qrData";
+    qrField.value = data;
+    
+    const timestampField = document.createElement("input");
+    timestampField.type = "hidden";
+    timestampField.name = "timestamp";
+    timestampField.value = new Date().toISOString();
+    
+    // Append fields to form
+    form.appendChild(qrField);
+    form.appendChild(timestampField);
+    
+    // Append form to document
+    document.body.appendChild(form);
+    
+    // Submit the form
+    form.submit();
+    
+    // Set timeout for status update
+    setTimeout(() => {
+      setStatus("Дані відправлено");
+      setIsSubmitting(false);
+    }, 3000);
+    
+    // Remove form from document
+    document.body.removeChild(form);
   };
   
-  const sendDirect = async (data) => {
-    const scriptUrl = "https://script.google.com/macros/s/AKfycbyrM0mi8yxYe_rcois0HIklhBs9c1CC34qy2M8xqFWGmcBrdHSKXM9ilq3EMbs4ik5P/exec"; 
-    
-    try {
-      const response = await fetch(scriptUrl, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ qrData: data }),
-        mode: "cors"
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Server responded with status: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      setStatus(result.message || "Дані успішно відправлено");
-      console.log("Відповідь сервера:", result);
-    } catch (error) {
-      console.error("Помилка прямої відправки:", error);
-      setError("Спроба прямої відправки не вдалася. Спробуємо альтернативний метод...");
-      
-      // Try alternative method
-      setSubmitMethod("image");
-      sendImageBased(data);
-    }
-  };
-  
-  const sendImageBased = (data) => {
-    setStatus("Використання альтернативного методу відправки...");
-    const encodedData = encodeURIComponent(data);
-    const scriptUrl = "https://script.google.com/macros/s/AKfycbyrM0mi8yxYe_rcois0HIklhBs9c1CC34qy2M8xqFWGmcBrdHSKXM9ilq3EMbs4ik5P/exec";
-    const timestamp = new Date().getTime();
-    
-    try {
-      const img = document.createElement("img");
-      img.width = 1;
-      img.height = 1;
-      img.style.position = "absolute";
-      img.style.opacity = "0.01";
-      img.src = `${scriptUrl}?qrData=${encodedData}&timestamp=${timestamp}&method=image`;
-      
-      img.onload = () => {
-        setStatus("Дані відправлено альтернативним методом");
-        document.body.removeChild(img);
-      };
-      
-      img.onerror = () => {
-        setStatus("Дані можливо відправлено (неможливо підтвердити)");
-        document.body.removeChild(img);
-        setError("Не вдалося підтвердити успішну відправку даних");
-      };
-      
-      document.body.appendChild(img);
-    } catch (err) {
-      setError("Всі методи відправки не вдалися. Будь ласка, спробуйте пізніше.");
-      console.error("Помилка альтернативного методу:", err);
-    }
-  };
-  
-  const handleMethodChange = (method) => {
-    setSubmitMethod(method);
-    if (qrData && qrData !== "Скануй QR-код...") {
-      sendToGoogleSheets(qrData);
-    }
+  const scanAgain = () => {
+    setScanning(true);
+    setStatus("");
   };
 
   return (
     <div className="container">
       <h1>📷 Сканер QR-кодів</h1>
+      
+      {/* Hidden iframe for form submission */}
+      <iframe 
+        ref={iframeRef}
+        name="hidden-iframe"
+        style={{ display: "none" }}
+        title="Submission Frame"
+      />
       
       {scanning ? (
         <div>
@@ -136,28 +111,13 @@ export default function QRScanner() {
           <p className="result">✅ Відскановано: <span className="data">{qrData}</span></p>
           
           {status && <p className="status">{status}</p>}
-          {error && <p className="error">{error}</p>}
           
-          <div className="method-selector">
-            <p>Метод відправки:</p>
-            <div className="buttons">
-              <button 
-                className={`method-btn ${submitMethod === 'direct' ? 'active' : ''}`}
-                onClick={() => handleMethodChange('direct')}
-              >
-                Прямий
-              </button>
-              <button 
-                className={`method-btn ${submitMethod === 'image' ? 'active' : ''}`}
-                onClick={() => handleMethodChange('image')}
-              >
-                Альтернативний
-              </button>
-            </div>
-          </div>
-          
-          <button className="scan-btn" onClick={() => setScanning(true)}>
-            🔄 Сканувати ще раз
+          <button 
+            className="scan-btn" 
+            onClick={scanAgain}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Відправка..." : "🔄 Сканувати ще раз"}
           </button>
         </div>
       )}
@@ -206,37 +166,7 @@ export default function QRScanner() {
           padding: 10px;
           background-color: #e8f0fe;
           border-radius: 4px;
-        }
-        .error {
-          color: #ea4335;
-          padding: 10px;
-          background-color: #fce8e6;
-          border-radius: 4px;
-        }
-        .method-selector {
-          margin: 20px 0;
-          border-top: 1px solid #eee;
-          padding-top: 15px;
-        }
-        .buttons {
-          display: flex;
-          justify-content: center;
-          gap: 10px;
-          margin-top: 10px;
-        }
-        .method-btn {
-          background-color: #f1f1f1;
-          color: #333;
-          border: 1px solid #ddd;
-          padding: 8px 16px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-        }
-        .method-btn.active {
-          background-color: #4285f4;
-          color: white;
-          border-color: #4285f4;
+          margin: 15px 0;
         }
         .scan-btn {
           background-color: #34a853;
@@ -248,9 +178,14 @@ export default function QRScanner() {
           margin-top: 15px;
           font-size: 16px;
           transition: background-color 0.2s;
+          min-width: 180px;
         }
         .scan-btn:hover {
           background-color: #2d9249;
+        }
+        .scan-btn:disabled {
+          background-color: #a0a0a0;
+          cursor: not-allowed;
         }
       `}</style>
     </div>
