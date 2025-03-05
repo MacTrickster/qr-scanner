@@ -23,19 +23,24 @@ export default function QRScanner() {
   }, [scanning]);
 
   const sendToGoogleSheets = async (data) => {
-    const scriptUrl = "https://script.google.com/macros/s/AKfycbxzGgZ2CCjK_WZ4Mo_8VBJ4-J9yNybmVxMN4Z6bCQqCulwkva2BsAJfhk3nwiqyIUUG/exec"; // Замініть на ваш URL
-    try {
-      await fetch(scriptUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ qrData: data }),
-      });
-    } catch (error) {
-      console.error("Помилка відправки даних:", error);
-    }
-  };
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbw1K7Z4u4lCSCRvinUx2_FYwEGkdcrjkC6lCeoKUclj2JVpEjg7Q_4JR3EI0pBnG5lB/exec"; // Замініть на свій URL
+
+  try {
+    const response = await fetch(scriptUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ qrData: data })
+    });
+
+    const result = await response.json();
+    console.log("Відповідь сервера:", result);
+  } catch (error) {
+    console.error("Помилка відправки даних:", error);
+  }
+};
+
 
   return (
     <div className="container">
