@@ -23,7 +23,7 @@ export default function QRScanner() {
   }, [scanning]);
 
   const sendToGoogleSheets = async (data) => {
-    const scriptUrl = "https://script.google.com/macros/s/AKfycbzXPhtUKQQ7JvGifJmlyteCO1VMoHhxidOEd8zP47MjUWjUGDskd4aMVmy6w4hN9qtD/exec"; // Замініть на ваш URL
+    const scriptUrl = "https://script.google.com/macros/s/AKfycby42C8MnNvnwy0rIvDxp6vHUqUcDKBnNHVfHHkztkFY9f-vPpgGG6Pyf6Vo9EWGxQyU/exec"; // Замініть на ваш URL
     try {
       await fetch(scriptUrl, {
         method: "POST",
