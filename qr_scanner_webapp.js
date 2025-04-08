@@ -21,6 +21,8 @@ export default function QRScanner() {
         fps: 10, 
         qrbox: { width: 250, height: 250 },
         rememberLastUsedCamera: true,
+        defaultDeviceId: 'environment',  // Підказка для вибору задньої камери
+        facingMode: "environment",       // Вказівка для використання задньої камери
         aspectRatio: 1.0,
         facingMode: { exact: "environment" } // Примусово використовувати задню камеру
       });
