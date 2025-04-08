@@ -12,6 +12,7 @@ export default function QRScanner() {
   const iframeRef = useRef(null);
   const scannerRef = useRef(null);
   const html5QrcodeRef = useRef(null);
+  const currentCameraIdRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
   const scriptUrl = "https://script.google.com/macros/s/AKfycbzkk2sndJkGhIUTODWQ0E-Dnyn3eEqbYkZKGL5Yubr_lh9cGrChvdnQdBdDUAeaFmQniA/exec";
@@ -22,7 +23,8 @@ export default function QRScanner() {
       initializeScanner();
     } else if (scanning && html5QrcodeRef.current) {
       // Якщо сканер вже був ініціалізований, просто запускаємо його знову
-      startScanner();
+      // з останньою використаною камерою
+      startScanner(currentCameraIdRef.current);
     }
     
     // Очищення при розмонтуванні компонента
@@ -62,6 +64,7 @@ export default function QRScanner() {
           }
         }
         
+        currentCameraIdRef.current = selectedDeviceId;
         startScanner(selectedDeviceId);
       } else {
         alert("Камери не знайдено на вашому пристрої!");
@@ -100,37 +103,47 @@ export default function QRScanner() {
       // console.error("QR scan error:", error);
     };
     
-    // Якщо передано конкретний ідентифікатор пристрою, використовуємо його
-    if (deviceId) {
-      html5QrcodeRef.current.start(
-        { deviceId: { exact: deviceId } },
-        config,
-        qrCodeSuccessCallback,
-        qrCodeErrorCallback
-      ).catch((err) => {
-        console.error("Помилка запуску камери:", err);
-        
-        // Якщо не вдалося запустити з заданим ID, спробуємо вибрати камеру за замовчуванням
+    // Спершу перевіряємо, чи сканер уже працює
+    html5QrcodeRef.current.getState().then(state => {
+      // Якщо сканер уже активний, зупиняємо його перед запуском нового
+      if (state === Html5QrcodeScannerState.SCANNING) {
+        return html5QrcodeRef.current.stop();
+      }
+    }).catch(err => {
+      // Ігноруємо помилку, можливо, сканер ще не запускався
+    }).finally(() => {
+      // Якщо передано конкретний ідентифікатор пристрою, використовуємо його
+      if (deviceId) {
+        html5QrcodeRef.current.start(
+          { deviceId: { exact: deviceId } },
+          config,
+          qrCodeSuccessCallback,
+          qrCodeErrorCallback
+        ).catch((err) => {
+          console.error("Помилка запуску камери:", err);
+          
+          // Якщо не вдалося запустити з заданим ID, спробуємо вибрати камеру за замовчуванням
+          html5QrcodeRef.current.start(
+            { facingMode: "environment" },
+            config,
+            qrCodeSuccessCallback,
+            qrCodeErrorCallback
+          ).catch((err2) => {
+            console.error("Помилка запуску камери за замовчуванням:", err2);
+          });
+        });
+      } else {
+        // Якщо ID не вказано, використовуємо facingMode: "environment" для задньої камери
         html5QrcodeRef.current.start(
           { facingMode: "environment" },
           config,
           qrCodeSuccessCallback,
           qrCodeErrorCallback
-        ).catch((err2) => {
-          console.error("Помилка запуску камери за замовчуванням:", err2);
+        ).catch((err) => {
+          console.error("Помилка запуску камери за замовчуванням:", err);
         });
-      });
-    } else {
-      // Якщо ID не вказано, використовуємо facingMode: "environment" для задньої камери
-      html5QrcodeRef.current.start(
-        { facingMode: "environment" },
-        config,
-        qrCodeSuccessCallback,
-        qrCodeErrorCallback
-      ).catch((err) => {
-        console.error("Помилка запуску камери за замовчуванням:", err);
-      });
-    }
+      }
+    });
   };
 
   // Form submission approach that bypasses CORS
@@ -285,7 +298,7 @@ export default function QRScanner() {
                 min="1" 
                 value={quantity} 
                 onChange={handleQuantityChange}
-                className="input-field"
+                className="input-field quantity-field"
               />
             </div>
           </div>
@@ -377,6 +390,8 @@ export default function QRScanner() {
           font-weight: 500;
           color: #333;
           margin-right: 10px;
+          min-width: 80px;
+          text-align: left;
         }
         .input-field {
           flex: 1;
@@ -385,6 +400,10 @@ export default function QRScanner() {
           border-radius: 4px;
           font-size: 16px;
           max-width: 200px;
+        }
+        .quantity-field {
+          max-width: 100px;
+          width: 100px;
         }
         .qr-input {
           width: 100%;
