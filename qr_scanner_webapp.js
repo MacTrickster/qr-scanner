@@ -1,4 +1,4 @@
-import { Html5QrcodeScanner, Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 import React, { useEffect, useState, useRef } from "react";
 
 export default function QRScanner() {
@@ -9,6 +9,7 @@ export default function QRScanner() {
   const [itemStatus, setItemStatus] = useState("Отримано"); // Default status
   const [quantity, setQuantity] = useState(1); // Default quantity
   const [team, setTeam] = useState("Команді A"); // Default team
+  const [cameraInitialized, setCameraInitialized] = useState(false);
   const iframeRef = useRef(null);
   const scannerRef = useRef(null);
   const html5QrcodeRef = useRef(null);
@@ -19,12 +20,23 @@ export default function QRScanner() {
 
   useEffect(() => {
     // Ініціалізуємо сканер при першому завантаженні компонента
-    if (scanning && !html5QrcodeRef.current) {
-      initializeScanner();
-    } else if (scanning && html5QrcodeRef.current) {
-      // Якщо сканер вже був ініціалізований, просто запускаємо його знову
-      // з останньою використаною камерою
-      startScanner(currentCameraIdRef.current);
+    if (!html5QrcodeRef.current) {
+      html5QrcodeRef.current = new Html5Qrcode("reader");
+      // Виявлення камер та ініціалізація відбудеться, коли сканер перейде в режим сканування
+    }
+    
+    // Якщо ми знаходимось в режимі сканування і камера ще не ініціалізована або нам потрібно перезапустити
+    if (scanning) {
+      if (!cameraInitialized) {
+        initializeCamera();
+      } else if (currentCameraIdRef.current) {
+        startScannerWithCamera(currentCameraIdRef.current);
+      }
+    } else if (!scanning && html5QrcodeRef.current) {
+      // Якщо ми не в режимі сканування, але камера працює, вимикаємо її
+      html5QrcodeRef.current.stop().catch(err => {
+        console.log("Помилка при зупиненні камери:", err);
+      });
     }
     
     // Очищення при розмонтуванні компонента
@@ -39,80 +51,84 @@ export default function QRScanner() {
         }
       }
     };
-  }, [scanning]);
+  }, [scanning, cameraInitialized]);
 
-  const initializeScanner = async () => {
+  const initializeCamera = async () => {
     try {
-      // Створюємо екземпляр Html5Qrcode замість Html5QrcodeScanner
-      html5QrcodeRef.current = new Html5Qrcode("reader");
-      
       // Отримуємо список доступних камер
       const devices = await Html5Qrcode.getCameras();
       
       if (devices && devices.length) {
+        console.log("Знайдено камери:", devices);
+        
         // Шукаємо задню камеру (environment)
         let selectedDeviceId = devices[0].id; // за замовчуванням - перша камера
         
         // Спробуємо знайти задню камеру
         for (const device of devices) {
+          console.log("Перевіряємо камеру:", device.label || device.id);
           // Задні камери зазвичай мають "environment" в назві або ідентифікаторі
-          if (device.label && device.label.toLowerCase().includes("back") || 
-              device.label && device.label.toLowerCase().includes("rear") ||
-              device.id && device.id.toLowerCase().includes("environment")) {
+          if ((device.label && (
+                device.label.toLowerCase().includes("back") || 
+                device.label.toLowerCase().includes("rear") || 
+                device.label.toLowerCase().includes("задня") ||
+                device.label.toLowerCase().includes("основна"))) || 
+              (device.id && device.id.toLowerCase().includes("environment"))) {
             selectedDeviceId = device.id;
+            console.log("Обрано задню камеру:", device.label || device.id);
             break;
           }
         }
         
         currentCameraIdRef.current = selectedDeviceId;
-        startScanner(selectedDeviceId);
+        setCameraInitialized(true);
+        startScannerWithCamera(selectedDeviceId);
       } else {
+        console.error("Камери не знайдено на пристрої");
         alert("Камери не знайдено на вашому пристрої!");
       }
     } catch (err) {
-      console.error("Помилка ініціалізації сканера:", err);
+      console.error("Помилка ініціалізації камери:", err);
+      // Спробуємо запустити з facingMode, якщо ідентифікатор пристрою недоступний
+      startScannerWithCamera(null);
     }
   };
 
-  const startScanner = (deviceId = null) => {
-    if (!html5QrcodeRef.current) return;
+  const startScannerWithCamera = (deviceId = null) => {
+    if (!html5QrcodeRef.current) {
+      console.error("Сканер не ініціалізовано");
+      return;
+    }
     
-    // Опції камери - намагаємось використовувати задню камеру
-    const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 250 },
-      aspectRatio: 1.0,
-      focusMode: "continuous",
-      experimentalFeatures: {
-        useBarCodeDetectorIfSupported: true
-      }
-    };
-    
-    const qrCodeSuccessCallback = (decodedText) => {
-      setQrData(decodedText);
-      setScanning(false);
-      
-      // Зупиняємо сканер, але не видаляємо його екземпляр
-      html5QrcodeRef.current.stop().catch(error => {
-        console.error("Failed to stop camera:", error);
-      });
-    };
-    
-    const qrCodeErrorCallback = (error) => {
-      // Ігноруємо помилки сканування, вони нормальні коли QR-код не видно
-      // console.error("QR scan error:", error);
-    };
-    
-    // Спершу перевіряємо, чи сканер уже працює
-    html5QrcodeRef.current.getState().then(state => {
-      // Якщо сканер уже активний (стан 2 = SCANNING), зупиняємо його перед запуском нового
-      if (state === 2) {
-        return html5QrcodeRef.current.stop();
-      }
-    }).catch(err => {
-      // Ігноруємо помилку, можливо, сканер ще не запускався
+    // Зупиняємо поточне сканування, якщо воно виконується
+    html5QrcodeRef.current.stop().catch(() => {
+      // Ігноруємо помилку, якщо сканер вже зупинено
     }).finally(() => {
-      // Якщо передано конкретний ідентифікатор пристрою, використовуємо його
+      // Конфігурація сканера
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        focusMode: "continuous",
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        }
+      };
+      
+      // Колбек успішного сканування
+      const qrCodeSuccessCallback = (decodedText) => {
+        setQrData(decodedText);
+        setScanning(false);
+      };
+      
+      // Колбек помилки сканування (нормальний при відсутності QR-коду в кадрі)
+      const qrCodeErrorCallback = (error) => {
+        // Спеціально не логуємо, щоб не засмічувати консоль
+      };
+      
+      console.log("Запуск камери. DeviceId:", deviceId || "facingMode:environment");
+      
+      // Запускаємо сканер з визначеною камерою або з задньою камерою за замовчуванням
       if (deviceId) {
         html5QrcodeRef.current.start(
           { deviceId: { exact: deviceId } },
@@ -120,27 +136,49 @@ export default function QRScanner() {
           qrCodeSuccessCallback,
           qrCodeErrorCallback
         ).catch((err) => {
-          console.error("Помилка запуску камери:", err);
+          console.error("Помилка запуску з конкретною камерою:", err);
           
-          // Якщо не вдалося запустити з заданим ID, спробуємо вибрати камеру за замовчуванням
+          // Спробуємо запустити з будь-якою задньою камерою
           html5QrcodeRef.current.start(
             { facingMode: "environment" },
             config,
             qrCodeSuccessCallback,
             qrCodeErrorCallback
           ).catch((err2) => {
-            console.error("Помилка запуску камери за замовчуванням:", err2);
+            console.error("Помилка запуску із задньою камерою:", err2);
+            
+            // Якщо все не вдалося, спробуємо запустити з будь-якою доступною камерою
+            html5QrcodeRef.current.start(
+              null,
+              config,
+              qrCodeSuccessCallback,
+              qrCodeErrorCallback
+            ).catch((err3) => {
+              console.error("Помилка запуску з будь-якою камерою:", err3);
+              alert("Не вдалося запустити камеру. Перезавантажте сторінку або перевірте дозволи камери.");
+            });
           });
         });
       } else {
-        // Якщо ID не вказано, використовуємо facingMode: "environment" для задньої камери
+        // Якщо deviceId не вказано, використовуємо задню камеру
         html5QrcodeRef.current.start(
           { facingMode: "environment" },
           config,
           qrCodeSuccessCallback,
           qrCodeErrorCallback
         ).catch((err) => {
-          console.error("Помилка запуску камери за замовчуванням:", err);
+          console.error("Помилка запуску із задньою камерою:", err);
+          
+          // Якщо не вдалося з задньою камерою, спробуємо з будь-якою
+          html5QrcodeRef.current.start(
+            null,
+            config,
+            qrCodeSuccessCallback,
+            qrCodeErrorCallback
+          ).catch((err2) => {
+            console.error("Помилка запуску з будь-якою камерою:", err2);
+            alert("Не вдалося запустити камеру. Перезавантажте сторінку або перевірте дозволи камери.");
+          });
         });
       }
     });
