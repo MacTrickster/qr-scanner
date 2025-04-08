@@ -105,8 +105,8 @@ export default function QRScanner() {
     
     // Спершу перевіряємо, чи сканер уже працює
     html5QrcodeRef.current.getState().then(state => {
-      // Якщо сканер уже активний, зупиняємо його перед запуском нового
-      if (state === Html5QrcodeScannerState.SCANNING) {
+      // Якщо сканер уже активний (стан 2 = SCANNING), зупиняємо його перед запуском нового
+      if (state === 2) {
         return html5QrcodeRef.current.stop();
       }
     }).catch(err => {
