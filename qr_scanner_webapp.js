@@ -1,4 +1,4 @@
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5QrcodeScanner } from "html5-qrcode";
 import React, { useEffect, useState, useRef } from "react";
 
 export default function QRScanner() {
@@ -9,180 +9,48 @@ export default function QRScanner() {
   const [itemStatus, setItemStatus] = useState("Отримано"); // Default status
   const [quantity, setQuantity] = useState(1); // Default quantity
   const [team, setTeam] = useState("Команді A"); // Default team
-  const [cameraInitialized, setCameraInitialized] = useState(false);
   const iframeRef = useRef(null);
   const scannerRef = useRef(null);
-  const html5QrcodeRef = useRef(null);
-  const currentCameraIdRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
   const scriptUrl = "https://script.google.com/macros/s/AKfycbzkk2sndJkGhIUTODWQ0E-Dnyn3eEqbYkZKGL5Yubr_lh9cGrChvdnQdBdDUAeaFmQniA/exec";
 
   useEffect(() => {
-    // Ініціалізуємо сканер при першому завантаженні компонента
-    if (!html5QrcodeRef.current) {
-      html5QrcodeRef.current = new Html5Qrcode("reader");
-      // Виявлення камер та ініціалізація відбудеться, коли сканер перейде в режим сканування
-    }
-    
-    // Якщо ми знаходимось в режимі сканування і камера ще не ініціалізована або нам потрібно перезапустити
     if (scanning) {
-      if (!cameraInitialized) {
-        initializeCamera();
-      } else if (currentCameraIdRef.current) {
-        startScannerWithCamera(currentCameraIdRef.current);
-      }
-    } else if (!scanning && html5QrcodeRef.current) {
-      // Якщо ми не в режимі сканування, але камера працює, вимикаємо її
-      html5QrcodeRef.current.stop().catch(err => {
-        console.log("Помилка при зупиненні камери:", err);
+      const scanner = new Html5QrcodeScanner("reader", { 
+        fps: 10, 
+        qrbox: { width: 250, height: 250 },
+        rememberLastUsedCamera: true,
+        aspectRatio: 1.0,
+        facingMode: { exact: "environment" } // Примусово використовувати задню камеру
       });
-    }
-    
-    // Очищення при розмонтуванні компонента
-    return () => {
-      if (html5QrcodeRef.current) {
-        try {
-          html5QrcodeRef.current.stop().catch(error => {
-            console.error("Failed to stop camera:", error);
-          });
-        } catch (e) {
-          console.log("Scanner cleanup error:", e);
-        }
-      }
-    };
-  }, [scanning, cameraInitialized]);
-
-  const initializeCamera = async () => {
-    try {
-      // Отримуємо список доступних камер
-      const devices = await Html5Qrcode.getCameras();
       
-      if (devices && devices.length) {
-        console.log("Знайдено камери:", devices);
-        
-        // Шукаємо задню камеру (environment)
-        let selectedDeviceId = devices[0].id; // за замовчуванням - перша камера
-        
-        // Спробуємо знайти задню камеру
-        for (const device of devices) {
-          console.log("Перевіряємо камеру:", device.label || device.id);
-          // Задні камери зазвичай мають "environment" в назві або ідентифікаторі
-          if ((device.label && (
-                device.label.toLowerCase().includes("back") || 
-                device.label.toLowerCase().includes("rear") || 
-                device.label.toLowerCase().includes("задня") ||
-                device.label.toLowerCase().includes("основна"))) || 
-              (device.id && device.id.toLowerCase().includes("environment"))) {
-            selectedDeviceId = device.id;
-            console.log("Обрано задню камеру:", device.label || device.id);
-            break;
+      scanner.render(
+        (decodedText) => {
+          setQrData(decodedText);
+          setScanning(false);
+          scanner.clear();
+        },
+        (errorMessage) => {
+          // Ігноруємо помилки сканування
+        }
+      );
+      
+      // Зберігаємо посилання на сканер для очищення
+      scannerRef.current = scanner;
+      
+      // Cleanup function
+      return () => {
+        if (scannerRef.current) {
+          try {
+            scannerRef.current.clear();
+          } catch (e) {
+            console.log("Scanner cleanup error:", e);
           }
         }
-        
-        currentCameraIdRef.current = selectedDeviceId;
-        setCameraInitialized(true);
-        startScannerWithCamera(selectedDeviceId);
-      } else {
-        console.error("Камери не знайдено на пристрої");
-        alert("Камери не знайдено на вашому пристрої!");
-      }
-    } catch (err) {
-      console.error("Помилка ініціалізації камери:", err);
-      // Спробуємо запустити з facingMode, якщо ідентифікатор пристрою недоступний
-      startScannerWithCamera(null);
+      };
     }
-  };
-
-  const startScannerWithCamera = (deviceId = null) => {
-    if (!html5QrcodeRef.current) {
-      console.error("Сканер не ініціалізовано");
-      return;
-    }
-    
-    // Зупиняємо поточне сканування, якщо воно виконується
-    html5QrcodeRef.current.stop().catch(() => {
-      // Ігноруємо помилку, якщо сканер вже зупинено
-    }).finally(() => {
-      // Конфігурація сканера
-      const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0,
-        focusMode: "continuous",
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
-        }
-      };
-      
-      // Колбек успішного сканування
-      const qrCodeSuccessCallback = (decodedText) => {
-        setQrData(decodedText);
-        setScanning(false);
-      };
-      
-      // Колбек помилки сканування (нормальний при відсутності QR-коду в кадрі)
-      const qrCodeErrorCallback = (error) => {
-        // Спеціально не логуємо, щоб не засмічувати консоль
-      };
-      
-      console.log("Запуск камери. DeviceId:", deviceId || "facingMode:environment");
-      
-      // Запускаємо сканер з визначеною камерою або з задньою камерою за замовчуванням
-      if (deviceId) {
-        html5QrcodeRef.current.start(
-          { deviceId: { exact: deviceId } },
-          config,
-          qrCodeSuccessCallback,
-          qrCodeErrorCallback
-        ).catch((err) => {
-          console.error("Помилка запуску з конкретною камерою:", err);
-          
-          // Спробуємо запустити з будь-якою задньою камерою
-          html5QrcodeRef.current.start(
-            { facingMode: "environment" },
-            config,
-            qrCodeSuccessCallback,
-            qrCodeErrorCallback
-          ).catch((err2) => {
-            console.error("Помилка запуску із задньою камерою:", err2);
-            
-            // Якщо все не вдалося, спробуємо запустити з будь-якою доступною камерою
-            html5QrcodeRef.current.start(
-              null,
-              config,
-              qrCodeSuccessCallback,
-              qrCodeErrorCallback
-            ).catch((err3) => {
-              console.error("Помилка запуску з будь-якою камерою:", err3);
-              alert("Не вдалося запустити камеру. Перезавантажте сторінку або перевірте дозволи камери.");
-            });
-          });
-        });
-      } else {
-        // Якщо deviceId не вказано, використовуємо задню камеру
-        html5QrcodeRef.current.start(
-          { facingMode: "environment" },
-          config,
-          qrCodeSuccessCallback,
-          qrCodeErrorCallback
-        ).catch((err) => {
-          console.error("Помилка запуску із задньою камерою:", err);
-          
-          // Якщо не вдалося з задньою камерою, спробуємо з будь-якою
-          html5QrcodeRef.current.start(
-            null,
-            config,
-            qrCodeSuccessCallback,
-            qrCodeErrorCallback
-          ).catch((err2) => {
-            console.error("Помилка запуску з будь-якою камерою:", err2);
-            alert("Не вдалося запустити камеру. Перезавантажте сторінку або перевірте дозволи камери.");
-          });
-        });
-      }
-    });
-  };
+  }, [scanning]);
 
   // Form submission approach that bypasses CORS
   const sendToGoogleSheets = () => {
@@ -279,7 +147,7 @@ export default function QRScanner() {
       
       {scanning ? (
         <div>
-          <div id="reader" ref={scannerRef}></div>
+          <div id="reader"></div>
           <p className="instruction">Наведіть камеру на QR-код для сканування</p>
         </div>
       ) : (
