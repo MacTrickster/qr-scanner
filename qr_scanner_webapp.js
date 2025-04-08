@@ -11,7 +11,7 @@ export default function QRScanner() {
   const iframeRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbxIkoQW-ZjIMovUB25kGVKDp_3ciCdg_dh0hv5Ss-mL8STsZCXx6WIdXzPgDN0ncT4Y/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbxFuU8-79oVrMX7z7tiLiK9yER8J9hTKb593eKQTxYm4S8viUrEXFytAQblbJdx6XYVwQ/exec";
 
   useEffect(() => {
     if (scanning) {
