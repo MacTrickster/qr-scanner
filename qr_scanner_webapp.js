@@ -294,18 +294,7 @@ export default function QRScanner() {
           <p className="instruction">Наведіть камеру на QR-код для сканування</p>
         </div>
       ) : (
-        <div className="result-container">
-          <div className="option-group">
-            <label htmlFor="qrDataEdit">QR дані:</label>
-            <input
-              id="qrDataEdit"
-              type="text"
-              value={qrData}
-              onChange={handleQrDataChange}
-              className="input-field qr-input"
-            />
-          </div>
-          
+        <div className="result-container">          
           <div className="options-container">
             <div className="option-group">
               <label htmlFor="productName">Назва:</label>
