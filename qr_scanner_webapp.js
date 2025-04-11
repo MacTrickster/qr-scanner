@@ -3,6 +3,8 @@ import React, { useEffect, useState, useRef } from "react";
 
 export default function QRScanner() {
   const [qrData, setQrData] = useState("Скануй QR-код...");
+  const [productName, setProductName] = useState(""); // Нове поле для назви товару
+  const [productCode, setProductCode] = useState(""); // Нове поле для коду товару
   const [scanning, setScanning] = useState(true);
   const [status, setStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -38,6 +40,31 @@ export default function QRScanner() {
       }
     };
   }, [scanning]);
+
+  // Функція для розбору QR-коду на назву та код товару
+  const parseQrData = (qrText) => {
+    try {
+      let productName = "";
+      let productCode = "";
+      
+      // Шукаємо назву товару
+      const nameMatch = qrText.match(/Name:\s*(.*?)(?=\s*Code:|$)/i);
+      if (nameMatch && nameMatch[1]) {
+        productName = nameMatch[1].trim();
+      }
+      
+      // Шукаємо код товару
+      const codeMatch = qrText.match(/Code:\s*([^:\n]+)(?:\n|$)/i);
+      if (codeMatch && codeMatch[1]) {
+        productCode = codeMatch[1].trim();
+      }
+      
+      return { productName, productCode, rawData: qrText };
+    } catch (e) {
+      console.error("Помилка розбору QR-коду:", e);
+      return { productName: "", productCode: "", rawData: qrText };
+    }
+  };
 
   const initializeScanner = async () => {
     try {
@@ -87,6 +114,12 @@ export default function QRScanner() {
     
     const qrCodeSuccessCallback = (decodedText) => {
       setQrData(decodedText);
+      
+      // Розбираємо дані QR-коду
+      const parsedData = parseQrData(decodedText);
+      setProductName(parsedData.productName);
+      setProductCode(parsedData.productCode);
+      
       setScanning(false);
       
       // Зупиняємо сканер, але не видаляємо його екземпляр
@@ -144,41 +177,56 @@ export default function QRScanner() {
     form.action = scriptUrl;
     form.target = "hidden-iframe"; // Target the hidden iframe
     
-    // Add form fields
-    const qrField = document.createElement("input");
-    qrField.type = "hidden";
-    qrField.name = "qrData";
-    qrField.value = qrData;
-    
-    const statusField = document.createElement("input");
-    statusField.type = "hidden";
-    statusField.name = "itemStatus";
-    statusField.value = itemStatus;
-    
-    const quantityField = document.createElement("input");
-    quantityField.type = "hidden";
-    quantityField.name = "quantity";
-    quantityField.value = quantity;
-    
+    // Додаємо часову мітку
     const timestampField = document.createElement("input");
     timestampField.type = "hidden";
     timestampField.name = "timestamp";
     timestampField.value = new Date().toISOString();
+    form.appendChild(timestampField);
     
-    // Додаємо поле команди, якщо вибрано "Видано зі складу"
+    // Додаємо назву товару
+    const nameField = document.createElement("input");
+    nameField.type = "hidden";
+    nameField.name = "productName";
+    nameField.value = productName;
+    form.appendChild(nameField);
+    
+    // Додаємо код товару
+    const codeField = document.createElement("input");
+    codeField.type = "hidden";
+    codeField.name = "productCode";
+    codeField.value = productCode;
+    form.appendChild(codeField);
+    
+    // Додаємо статус товару
+    const statusField = document.createElement("input");
+    statusField.type = "hidden";
+    statusField.name = "itemStatus";
+    statusField.value = itemStatus;
+    form.appendChild(statusField);
+    
+    // Додаємо кількість
+    const quantityField = document.createElement("input");
+    quantityField.type = "hidden";
+    quantityField.name = "quantity";
+    quantityField.value = quantity;
+    form.appendChild(quantityField);
+    
+    // Додаємо команду, якщо вибрано "Видано зі складу"
     if (itemStatus === "Видано зі складу") {
       const teamField = document.createElement("input");
       teamField.type = "hidden";
       teamField.name = "team";
       teamField.value = team;
       form.appendChild(teamField);
+    } else {
+      // Додаємо пусте поле для команди, щоб порядок стовпців зберігався
+      const teamField = document.createElement("input");
+      teamField.type = "hidden";
+      teamField.name = "team";
+      teamField.value = "";
+      form.appendChild(teamField);
     }
-    
-    // Append fields to form
-    form.appendChild(qrField);
-    form.appendChild(statusField);
-    form.appendChild(quantityField);
-    form.appendChild(timestampField);
     
     // Append form to document
     document.body.appendChild(form);
@@ -199,6 +247,9 @@ export default function QRScanner() {
   const scanAgain = () => {
     setScanning(true);
     setStatus("");
+    setQrData("Скануй QR-код...");
+    setProductName("");
+    setProductCode("");
     setItemStatus("Отримано"); // Reset to default
     setQuantity(1); // Reset to default
     setTeam("Команді A"); // Reset to default team
@@ -212,6 +263,17 @@ export default function QRScanner() {
     } else if (e.target.value === "") {
       setQuantity("");
     }
+  };
+
+  // Handle manual QR data change and parse it
+  const handleQrDataChange = (e) => {
+    const newQrData = e.target.value;
+    setQrData(newQrData);
+    
+    // Parse the new QR data
+    const parsedData = parseQrData(newQrData);
+    setProductName(parsedData.productName);
+    setProductCode(parsedData.productCode);
   };
 
   return (
@@ -234,17 +296,41 @@ export default function QRScanner() {
       ) : (
         <div className="result-container">
           <div className="option-group">
-            <label htmlFor="qrDataEdit">Відскановано:</label>
+            <label htmlFor="qrDataEdit">QR дані:</label>
             <input
               id="qrDataEdit"
               type="text"
               value={qrData}
-              onChange={(e) => setQrData(e.target.value)}
+              onChange={handleQrDataChange}
               className="input-field qr-input"
             />
           </div>
           
           <div className="options-container">
+            <div className="option-group">
+              <label htmlFor="productName">Назва:</label>
+              <input
+                id="productName"
+                type="text"
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                className="input-field"
+                readOnly // Зазвичай це поле не потрібно редагувати
+              />
+            </div>
+            
+            <div className="option-group">
+              <label htmlFor="productCode">Код:</label>
+              <input
+                id="productCode"
+                type="text"
+                value={productCode}
+                onChange={(e) => setProductCode(e.target.value)}
+                className="input-field"
+                readOnly // Зазвичай це поле не потрібно редагувати
+              />
+            </div>
+            
             <div className="option-group">
               <label htmlFor="itemStatus">Статус:</label>
               <select 
@@ -296,7 +382,7 @@ export default function QRScanner() {
             <button 
               className="submit-btn" 
               onClick={sendToGoogleSheets}
-              disabled={isSubmitting || quantity === "" || quantity < 1}
+              disabled={isSubmitting || quantity === "" || quantity < 1 || !productName || !productCode}
             >
               {isSubmitting ? "Відправка..." : "📤 Відправити дані"}
             </button>
@@ -387,9 +473,9 @@ export default function QRScanner() {
           max-width: 200px;
         }
         .quantity-field {
-  max-width: 100px;
-  width: 100px;
-}
+          max-width: 100px;
+          width: 100px;
+        }
         .qr-input {
           width: 100%;
           max-width: none;
