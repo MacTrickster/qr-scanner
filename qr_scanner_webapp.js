@@ -16,7 +16,7 @@ export default function QRScanner() {
   const html5QrcodeRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbztzl54OGv-otXpXE3UcrY7tdl0n6BfKEgywTK39cfKx3go70zeoj1ST01M-h6xUG6F8w/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbxIrwXWlzDh0xDQbkkzdPFcyl4UrXzpUJVy35m52Z3CgTg_BFkcpGDp-jeySLRscvbNRQ/exec";
 
   useEffect(() => {
     // Ініціалізуємо сканер при першому завантаженні компонента
