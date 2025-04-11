@@ -11,12 +11,13 @@ export default function QRScanner() {
   const [itemStatus, setItemStatus] = useState("Отримано"); // Default status
   const [quantity, setQuantity] = useState(1); // Default quantity
   const [team, setTeam] = useState("Команді A"); // Default team
+  const [isNewItem, setIsNewItem] = useState(false); // Новий стан для позначення нового товару
   const iframeRef = useRef(null);
   const scannerRef = useRef(null);
   const html5QrcodeRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbxIrwXWlzDh0xDQbkkzdPFcyl4UrXzpUJVy35m52Z3CgTg_BFkcpGDp-jeySLRscvbNRQ/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbwcKQ_4L7o81SWVhPYe82jX-icUvx5ZkUpuiQTGnIjg5RzPQ0tIK3ktZYwB-s9WrA6uqQ/exec";
 
   useEffect(() => {
     // Ініціалізуємо сканер при першому завантаженні компонента
@@ -113,12 +114,8 @@ export default function QRScanner() {
     };
     
     const qrCodeSuccessCallback = (decodedText) => {
-      setQrData(decodedText);
-      
-      // Розбираємо дані QR-коду
-      const parsedData = parseQrData(decodedText);
-      setProductName(parsedData.productName);
-      setProductCode(parsedData.productCode);
+      // Використовуємо оновлену функцію для обробки даних
+      processQrData(decodedText);
       
       setScanning(false);
       
@@ -228,6 +225,13 @@ export default function QRScanner() {
       form.appendChild(teamField);
     }
     
+    // Додаємо інформацію про новий товар
+    const isNewItemField = document.createElement("input");
+    isNewItemField.type = "hidden";
+    isNewItemField.name = "isNewItem";
+    isNewItemField.value = isNewItem ? "Так" : "Ні";
+    form.appendChild(isNewItemField);
+    
     // Append form to document
     document.body.appendChild(form);
     
@@ -253,6 +257,7 @@ export default function QRScanner() {
     setItemStatus("Отримано"); // Reset to default
     setQuantity(1); // Reset to default
     setTeam("Команді A"); // Reset to default team
+    setIsNewItem(false); // Reset to default
   };
 
   // Handle quantity change with validation
@@ -265,12 +270,11 @@ export default function QRScanner() {
     }
   };
 
-  // Handle manual QR data change and parse it
-  const handleQrDataChange = (e) => {
-    const newQrData = e.target.value;
+  // Функція для обробки змін QR даних, залишаємо для обробки даних після сканування
+  const processQrData = (newQrData) => {
     setQrData(newQrData);
     
-    // Parse the new QR data
+    // Parse the QR data
     const parsedData = parseQrData(newQrData);
     setProductName(parsedData.productName);
     setProductCode(parsedData.productCode);
@@ -294,7 +298,7 @@ export default function QRScanner() {
           <p className="instruction">Наведіть камеру на QR-код для сканування</p>
         </div>
       ) : (
-        <div className="result-container">          
+        <div className="result-container">
           <div className="options-container">
             <div className="option-group">
               <label htmlFor="productName">Назва:</label>
@@ -304,7 +308,7 @@ export default function QRScanner() {
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
                 className="input-field"
-                readOnly // Зазвичай це поле не потрібно редагувати
+                // Поле можна редагувати
               />
             </div>
             
@@ -316,7 +320,18 @@ export default function QRScanner() {
                 value={productCode}
                 onChange={(e) => setProductCode(e.target.value)}
                 className="input-field"
-                readOnly // Зазвичай це поле не потрібно редагувати
+                readOnly // Це поле залишається тільки для читання
+              />
+            </div>
+            
+            <div className="option-group checkbox-group">
+              <label htmlFor="isNewItem">Новий товар:</label>
+              <input
+                id="isNewItem"
+                type="checkbox"
+                checked={isNewItem}
+                onChange={(e) => setIsNewItem(e.target.checked)}
+                className="checkbox-field"
               />
             </div>
             
