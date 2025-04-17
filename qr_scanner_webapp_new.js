@@ -19,7 +19,7 @@ export default function QRScanner() {
   const html5QrcodeRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbwLQAmrbhmIElvBHBAs765JhfhIqjJNCf4VhVmwnyqPrh5kaCGXpWFJ2e6fD6g0XvtbZg/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbzf_H3JPU_dGIJWe-fCnkGNaUf1lAhOcImR9JA7MDeh9ZUrkZXvKHliiW3x2mnUknTRfQ/exec";
 
   useEffect(() => {
     // Ініціалізуємо сканер при першому завантаженні компонента
@@ -167,6 +167,16 @@ export default function QRScanner() {
 
   // Form submission approach that bypasses CORS
   const sendToGoogleSheets = () => {
+    // Додайте на початку функції
+  if ((itemStatus === "Видано зі складу" || itemStatus === "Брак") && productCode) {
+    // Зробіть безпосередню перевірку через prompt для демонстрації
+    const proceed = confirm(`Увага! Ви намагаєтесь ${itemStatus === "Видано зі складу" ? "видати" : "бракувати"} ${quantity} одиниць товару "${productName}" (${productCode}). 
+Чи впевнені ви, що на складі достатньо товару?`);
+    
+    if (!proceed) {
+      return; // Користувач відмовився продовжувати
+    }
+  }
     setError(null);
     setStatus("Відправка даних...");
     setIsSubmitting(true);
