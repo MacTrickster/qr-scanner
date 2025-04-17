@@ -809,4 +809,43 @@ export default function QRScanner() {
           padding: 12px 20px;
           border-radius: 4px;
           cursor: pointer;
-          font-size
+          font-size: 16px;
+          transition: background-color 0.2s;
+        }
+        .submit-btn:hover {
+          background-color: #3367d6;
+        }
+        .refresh-btn {
+          background-color: #fbbc05;
+          color: white;
+          border: none;
+          padding: 12px 20px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+          transition: background-color 0.2s;
+        }
+        .refresh-btn:hover {
+          background-color: #f0b400;
+        }
+        .scan-btn {
+          background-color: #34a853;
+          color: white;
+          border: none;
+          padding: 12px 20px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+          transition: background-color 0.2s;
+        }
+        .scan-btn:hover {
+          background-color: #2d9249;
+        }
+        .submit-btn:disabled, .refresh-btn:disabled, .scan-btn:disabled {
+          background-color: #a0a0a0;
+          cursor: not-allowed;
+        }
+      `}</style>
+    </div>
+  );
+}
