@@ -9,18 +9,27 @@ export default function QRScanner() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [itemStatus, setItemStatus] = useState("Отримано");
+  const [sourceLocation, setSourceLocation] = useState("Отримано на склад");
+  const [destinationLocation, setDestinationLocation] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [team, setTeam] = useState("Команді A");
   const [isNewItem, setIsNewItem] = useState(false);
   const [stockInfo, setStockInfo] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const iframeRef = useRef(null);
   const scannerRef = useRef(null);
   const html5QrcodeRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbwfwvuYkAfzk_b5SSN0MTi6BShYkV8HMhhij6BbaLstBRQxgsh9kHrjMPC1Qo-cmJFPdA/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbyYMwneBX4I8j_Z_UDIrmE3atQLZtQlh5lmbDqUFD--qbyjPMn72p4Ejsg118WH-_X6/exec";
+
+  // Визначення доступних "Переміщено В" для кожного "Переміщено З"
+  const destinationOptions = {
+    "Отримано на склад": ["Видано зі складу", "Ремонт"],
+    "Ремонт": ["Відремонтовано", "Брак", "Не потребує ремонту"],
+    "Видано зі складу": ["Ремонт"]
+  };
 
   useEffect(() => {
     // Ініціалізуємо сканер при першому завантаженні компонента
@@ -29,6 +38,11 @@ export default function QRScanner() {
     } else if (scanning && html5QrcodeRef.current) {
       // Якщо сканер вже був ініціалізований, просто запускаємо його знову
       startScanner();
+    }
+    
+    // Встановлюємо доступні опції для "Переміщено В" при зміні "Переміщено З"
+    if (sourceLocation && destinationOptions[sourceLocation]) {
+      setDestinationLocation(destinationOptions[sourceLocation][0] || "");
     }
     
     // Очищення при розмонтуванні компонента
@@ -43,7 +57,7 @@ export default function QRScanner() {
         }
       }
     };
-  }, [scanning]);
+  }, [scanning, sourceLocation]);
 
   // Функція для розбору QR-коду на назву та код товару
   const parseQrData = (qrText) => {
@@ -89,7 +103,7 @@ export default function QRScanner() {
         script.onerror = () => {
           document.body.removeChild(script);
           delete window[callbackName];
-          reject(new Error("Не вдалося отримати дані про запаси"));
+          reject(new Error("Не вдалося отримати дані про наявність товару"));
         };
         
         // Створюємо URL запиту
@@ -221,40 +235,57 @@ export default function QRScanner() {
     
     // Якщо є код товару, спробуйте отримати інформацію про запаси
     if (parsedData.productCode) {
-      try {
-        setStatus("Отримання даних про наявність...");
-        const stockData = await fetchStockInfo(parsedData.productCode);
-        
-        if (stockData && stockData.success) {
-          setStockInfo({
-            available: stockData.stock,
-            code: stockData.code,
-            found: stockData.found
-          });
-          setStatus("");
-        } else {
-          setStockInfo(null);
-          setStatus("");
-          setError("Не вдалося отримати дані про наявність товару");
-        }
-      } catch (error) {
-        console.error("Помилка при отриманні даних про запаси:", error);
+      await refreshStockInfo(parsedData.productCode);
+    }
+  };
+
+  // Функція для оновлення інформації про запаси
+  const refreshStockInfo = async (code = null) => {
+    const productCodeToUse = code || productCode;
+    if (!productCodeToUse) {
+      setError("Код товару відсутній. Спочатку відскануйте QR-код.");
+      return;
+    }
+
+    try {
+      setIsRefreshing(true);
+      setStatus("Отримання даних про наявність...");
+      const stockData = await fetchStockInfo(productCodeToUse);
+      
+      if (stockData && stockData.success) {
+        setStockInfo({
+          available: stockData.stock,
+          code: stockData.code,
+          found: stockData.found
+        });
+        setStatus("");
+      } else {
         setStockInfo(null);
         setStatus("");
-        setError("Помилка при отриманні даних про запаси");
+        setError("Не вдалося отримати дані про наявність товару");
       }
+    } catch (error) {
+      console.error("Помилка при отриманні даних про запаси:", error);
+      setStockInfo(null);
+      setStatus("");
+      setError("Помилка при отриманні даних про запаси");
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
   // Form submission approach that bypasses CORS
   const sendToGoogleSheets = () => {
-    // Перевіряємо наявність достатньої кількості товару
-    if (stockInfo && (itemStatus === "Видано зі складу" || itemStatus === "Брак")) {
-      if (stockInfo.available < quantity) {
-        setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
-        return; // Не продовжуємо відправку
-      }
+    // Перевіряємо обмеження переміщень на основі наявності
+    if (sourceLocation === "Отримано на склад" && 
+        (destinationLocation === "Видано зі складу" || destinationLocation === "Ремонт") && 
+        stockInfo && stockInfo.available < quantity) {
+      setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
+      return;
     }
+    
+    // TODO: Додати перевірку для "Ремонт" -> ["Відремонтовано", "Брак", "Не потребує ремонту"]
+    // (потрібно додати колонку з кількістю товарів в ремонті в stockInfo)
     
     setError(null);
     setStatus("Відправка даних...");
@@ -280,19 +311,33 @@ export default function QRScanner() {
     nameField.value = productName;
     form.appendChild(nameField);
     
-    // Додаємо код товару
+    // Додаємо код товару - якщо це новий товар, відправляємо пусте поле
     const codeField = document.createElement("input");
     codeField.type = "hidden";
     codeField.name = "productCode";
-    codeField.value = productCode;
+    codeField.value = isNewItem ? "" : productCode;
     form.appendChild(codeField);
     
-    // Додаємо статус товару
-    const statusField = document.createElement("input");
-    statusField.type = "hidden";
-    statusField.name = "itemStatus";
-    statusField.value = itemStatus;
-    form.appendChild(statusField);
+    // Додаємо джерело (Переміщено З)
+    const sourceField = document.createElement("input");
+    sourceField.type = "hidden";
+    sourceField.name = "sourceLocation";
+    sourceField.value = sourceLocation;
+    form.appendChild(sourceField);
+    
+    // Додаємо призначення (Переміщено В)
+    const destinationField = document.createElement("input");
+    destinationField.type = "hidden";
+    destinationField.name = "destinationLocation";
+    destinationField.value = destinationLocation;
+    form.appendChild(destinationField);
+    
+    // Додаємо команду, якщо вибрано "Видано зі складу"
+    const teamField = document.createElement("input");
+    teamField.type = "hidden";
+    teamField.name = "team";
+    teamField.value = destinationLocation === "Видано зі складу" ? team : "";
+    form.appendChild(teamField);
     
     // Додаємо кількість
     const quantityField = document.createElement("input");
@@ -300,22 +345,6 @@ export default function QRScanner() {
     quantityField.name = "quantity";
     quantityField.value = quantity;
     form.appendChild(quantityField);
-    
-    // Додаємо команду, якщо вибрано "Видано зі складу"
-    if (itemStatus === "Видано зі складу") {
-      const teamField = document.createElement("input");
-      teamField.type = "hidden";
-      teamField.name = "team";
-      teamField.value = team;
-      form.appendChild(teamField);
-    } else {
-      // Додаємо пусте поле для команди, щоб порядок стовпців зберігався
-      const teamField = document.createElement("input");
-      teamField.type = "hidden";
-      teamField.name = "team";
-      teamField.value = "";
-      form.appendChild(teamField);
-    }
     
     // Додаємо інформацію про новий товар
     const isNewItemField = document.createElement("input");
@@ -332,20 +361,8 @@ export default function QRScanner() {
     
     // Set timeout for status update
     setTimeout(() => {
-      // Оновлюємо локальні дані про запаси після відправки
-      if (stockInfo && (itemStatus === "Видано зі складу" || itemStatus === "Брак")) {
-        const newStock = Math.max(0, stockInfo.available - quantity);
-        setStockInfo({
-          ...stockInfo,
-          available: newStock
-        });
-      } else if (stockInfo && itemStatus === "Отримано") {
-        const newStock = stockInfo.available + quantity;
-        setStockInfo({
-          ...stockInfo,
-          available: newStock
-        });
-      }
+      // Оновлюємо дані про запаси після відправки
+      refreshStockInfo();
       
       setStatus("Дані відправлено");
       setIsSubmitting(false);
@@ -362,11 +379,12 @@ export default function QRScanner() {
     setQrData("Скануй QR-код...");
     setProductName("");
     setProductCode("");
-    setItemStatus("Отримано"); // Reset to default
-    setQuantity(1); // Reset to default
-    setTeam("Команді A"); // Reset to default team
-    setIsNewItem(false); // Reset to default
-    setStockInfo(null); // Reset stock info
+    setSourceLocation("Отримано на склад");
+    setDestinationLocation(destinationOptions["Отримано на склад"][0] || "");
+    setQuantity(1);
+    setTeam("Команді A");
+    setIsNewItem(false);
+    setStockInfo(null);
   };
 
   // Handle quantity change with validation
@@ -376,21 +394,39 @@ export default function QRScanner() {
       setQuantity(value);
       
       // Перевіряємо наявність достатньої кількості товару при зміні кількості
-      if (stockInfo && (itemStatus === "Видано зі складу" || itemStatus === "Брак")) {
-        if (stockInfo.available < value) {
-          setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${value}`);
-        } else {
-          setError(null);
-        }
+      if (sourceLocation === "Отримано на склад" && 
+          (destinationLocation === "Видано зі складу" || destinationLocation === "Ремонт") && 
+          stockInfo && stockInfo.available < value) {
+        setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${value}`);
+      } else {
+        setError(null);
       }
     } else if (e.target.value === "") {
       setQuantity("");
     }
   };
 
+  // Обробник для зміни "Переміщено З"
+  const handleSourceChange = (e) => {
+    const newSource = e.target.value;
+    setSourceLocation(newSource);
+    // Встановлюємо першу доступну опцію для "Переміщено В"
+    if (destinationOptions[newSource] && destinationOptions[newSource].length > 0) {
+      setDestinationLocation(destinationOptions[newSource][0]);
+    } else {
+      setDestinationLocation("");
+    }
+  };
+
+  // Обробник для зміни Новий Товар
+  const handleNewItemChange = (e) => {
+    const isNew = e.target.checked;
+    setIsNewItem(isNew);
+  };
+
   return (
     <div className="container">
-      <h1>📷 Сканер QR-кодів</h1>
+      <h1>📦 Складська База</h1>
       
       {/* Hidden iframe for form submission */}
       <iframe 
@@ -414,27 +450,40 @@ export default function QRScanner() {
       ) : (
         <div className="result-container">
           <div className="options-container">
-            <div className="option-group">
+            {/* Назва товару */}
+            <div className="option-group name-group">
               <label htmlFor="productName">Назва:</label>
               <input
                 id="productName"
                 type="text"
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
-                className="input-field"
-                // Поле можна редагувати
+                className="input-field name-field"
+                readOnly={!isNewItem} // Редагування дозволено тільки для нових товарів
               />
             </div>
             
+            {/* Галочка "Новий товар" */}
+            <div className="option-group checkbox-group">
+              <label htmlFor="isNewItem">Новий товар:</label>
+              <input
+                id="isNewItem"
+                type="checkbox"
+                checked={isNewItem}
+                onChange={handleNewItemChange}
+                className="checkbox-field"
+              />
+            </div>
+            
+            {/* Код товару - завжди тільки для читання */}
             <div className="option-group">
               <label htmlFor="productCode">Код:</label>
               <input
                 id="productCode"
                 type="text"
                 value={productCode}
-                onChange={(e) => setProductCode(e.target.value)}
-                className="input-field"
-                readOnly // Це поле залишається тільки для читання
+                className="input-field code-field"
+                readOnly
               />
             </div>
             
@@ -450,46 +499,43 @@ export default function QRScanner() {
               </div>
             )}
             
-            <div className="option-group checkbox-group">
-              <label htmlFor="isNewItem">Новий товар:</label>
-              <input
-                id="isNewItem"
-                type="checkbox"
-                checked={isNewItem}
-                onChange={(e) => setIsNewItem(e.target.checked)}
-                className="checkbox-field"
-              />
-            </div>
-            
+            {/* Переміщено З (джерело) */}
             <div className="option-group">
-              <label htmlFor="itemStatus">Статус:</label>
+              <label htmlFor="sourceLocation">Переміщено з:</label>
               <select 
-                id="itemStatus" 
-                value={itemStatus} 
-                onChange={(e) => {
-                  setItemStatus(e.target.value);
-                  // Перевіряємо запаси при зміні статусу
-                  if ((e.target.value === "Видано зі складу" || e.target.value === "Брак") && 
-                      stockInfo && stockInfo.available < quantity) {
-                    setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
-                  } else {
-                    setError(null);
-                  }
-                }}
+                id="sourceLocation" 
+                value={sourceLocation} 
+                onChange={handleSourceChange}
                 className="input-field"
               >
-                <option value="Отримано">Отримано</option>
+                <option value="Отримано на склад">Отримано на склад</option>
+                <option value="Ремонт">Ремонт</option>
                 <option value="Видано зі складу">Видано зі складу</option>
-                <option value="Брак">Брак</option>
-                <option value="В ремонті">В ремонті</option>
-                <option value="Відремонтовано">Відремонтовано</option>
+              </select>
+            </div>
+            
+            {/* Переміщено В (призначення) */}
+            <div className="option-group">
+              <label htmlFor="destinationLocation">Переміщено в:</label>
+              <select 
+                id="destinationLocation" 
+                value={destinationLocation} 
+                onChange={(e) => setDestinationLocation(e.target.value)}
+                className="input-field"
+                disabled={!sourceLocation || !destinationOptions[sourceLocation] || destinationOptions[sourceLocation].length === 0}
+              >
+                {sourceLocation && destinationOptions[sourceLocation]?.map((option, index) => (
+                  <option key={index} value={option}>
+                    {option}
+                  </option>
+                ))}
               </select>
             </div>
             
             {/* Показувати вибір команди тільки якщо вибрано "Видано зі складу" */}
-            {itemStatus === "Видано зі складу" && (
+            {destinationLocation === "Видано зі складу" && (
               <div className="option-group">
-                <label htmlFor="team">Кому:</label>
+                <label htmlFor="team">Команда:</label>
                 <select 
                   id="team" 
                   value={team} 
@@ -504,6 +550,7 @@ export default function QRScanner() {
               </div>
             )}
             
+            {/* Кількість */}
             <div className="option-group">
               <label htmlFor="quantity">Кількість:</label>
               <input 
@@ -527,18 +574,29 @@ export default function QRScanner() {
             <button 
               className="submit-btn" 
               onClick={sendToGoogleSheets}
-              disabled={isSubmitting || quantity === "" || quantity < 1 || !productName || !productCode || 
-                ((itemStatus === "Видано зі складу" || itemStatus === "Брак") && stockInfo && stockInfo.available < quantity)}
+              disabled={isSubmitting || isRefreshing || quantity === "" || quantity < 1 || !productName || 
+                (!isNewItem && !productCode) || 
+                (sourceLocation === "Отримано на склад" && 
+                 (destinationLocation === "Видано зі складу" || destinationLocation === "Ремонт") && 
+                 stockInfo && stockInfo.available < quantity)}
             >
               {isSubmitting ? "Відправка..." : "📤 Відправити дані"}
             </button>
             
             <button 
+              className="refresh-btn" 
+              onClick={() => refreshStockInfo()}
+              disabled={isSubmitting || isRefreshing || (!productCode && !isNewItem)}
+            >
+              {isRefreshing ? "Оновлення..." : "🔄 Оновити дані"}
+            </button>
+            
+            <button 
               className="scan-btn" 
               onClick={scanAgain}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isRefreshing}
             >
-              🔄 Сканувати інший QR-код
+              📷 Сканувати інший QR-код
             </button>
           </div>
         </div>
@@ -571,7 +629,42 @@ export default function QRScanner() {
         .instruction {
           color: #666;
           margin-top: 15px;
-          font-size: 14px;
+          font-size: 16px;
+          transition: background-color 0.2s;
+        }
+        .submit-btn:hover {
+          background-color: #3367d6;
+        }
+        .refresh-btn {
+          background-color: #fbbc05;
+          color: white;
+          border: none;
+          padding: 12px 20px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+          transition: background-color 0.2s;
+        }
+        .refresh-btn:hover {
+          background-color: #f0b400;
+        }
+        .scan-btn {
+          background-color: #34a853;
+          color: white;
+          border: none;
+          padding: 12px 20px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+          transition: background-color 0.2s;
+        }
+        .scan-btn:hover {
+          background-color: #2d9249;
+        }
+        .submit-btn:disabled, .refresh-btn:disabled, .scan-btn:disabled {
+          background-color: #a0a0a0;
+          cursor: not-allowed;
+        }: 14px;
         }
         .result-container {
           background-color: #f9f9f9;
@@ -605,10 +698,14 @@ export default function QRScanner() {
         .option-group:last-child {
           margin-bottom: 0;
         }
+        .name-group {
+          align-items: flex-start;
+        }
         label {
           font-weight: 500;
           color: #333;
           margin-right: 10px;
+          white-space: nowrap;
         }
         .input-field {
           flex: 1;
@@ -616,7 +713,18 @@ export default function QRScanner() {
           border: 1px solid #ddd;
           border-radius: 4px;
           font-size: 16px;
-          max-width: 200px;
+        }
+        .name-field {
+          height: auto;
+          min-height: 38px;
+          word-wrap: break-word;
+          text-align: left;
+          overflow-wrap: break-word;
+          white-space: normal;
+        }
+        .code-field {
+          background-color: #f5f5f5;
+          color: #666;
         }
         .quantity-field {
           max-width: 100px;
@@ -634,6 +742,10 @@ export default function QRScanner() {
         }
         select.input-field {
           background-color: white;
+        }
+        select.input-field:disabled {
+          background-color: #f5f5f5;
+          color: #888;
         }
         .status {
           color: #4285f4;
@@ -697,30 +809,4 @@ export default function QRScanner() {
           padding: 12px 20px;
           border-radius: 4px;
           cursor: pointer;
-          font-size: 16px;
-          transition: background-color 0.2s;
-        }
-        .submit-btn:hover {
-          background-color: #3367d6;
-        }
-        .scan-btn {
-          background-color: #34a853;
-          color: white;
-          border: none;
-          padding: 12px 20px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 16px;
-          transition: background-color 0.2s;
-        }
-        .scan-btn:hover {
-          background-color: #2d9249;
-        }
-        .submit-btn:disabled, .scan-btn:disabled {
-          background-color: #a0a0a0;
-          cursor: not-allowed;
-        }
-      `}</style>
-    </div>
-  );
-}
+          font-size
