@@ -23,7 +23,7 @@ export default function QRScanner() {
   const html5QrcodeRef = useRef(null);
   
   // Google Apps Script web app URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbz4LUTD_KUAVM2_zameGY_zBrQafR3fowqiPgm8b8IMhsUH7WyZ6fo1fUU-OdwB1D3ZWg/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbxa-PWsGflydroobArUMHfWPnPiYF687nk_31adV52fbCJvhMq2Y5iy7NYfQYv2a4E7Jw/exec";
 
   // При завантаженні компонента - отримати дані запасів
   useEffect(() => {
