@@ -7,17 +7,19 @@ export default function QRScanner() {
   const [productCode, setProductCode] = useState(""); // Нове поле для коду товару
   const [scanning, setScanning] = useState(true);
   const [status, setStatus] = useState("");
+  const [error, setError] = useState(null); // Для зберігання помилок
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [itemStatus, setItemStatus] = useState("Отримано"); // Default status
   const [quantity, setQuantity] = useState(1); // Default quantity
   const [team, setTeam] = useState("Команді A"); // Default team
   const [isNewItem, setIsNewItem] = useState(false); // Новий стан для позначення нового товару
   const iframeRef = useRef(null);
+  const formRef = useRef(null); // Референція для форми
   const scannerRef = useRef(null);
   const html5QrcodeRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbw4SlzMZrmt_J9kOODl43AMoHJ6_DqhDmp-_lx9KxHpncQa9wF3votQ4l8mpcCiRhWd-g/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbzjHL98-6FA2c5kX_RonmseWIOi31QMmNQBpKvYTOo_vTVwsoQKdmPSmx0O6apxKbNb6g/exec";
 
   useEffect(() => {
     // Ініціалізуємо сканер при першому завантаженні компонента
@@ -41,6 +43,55 @@ export default function QRScanner() {
       }
     };
   }, [scanning]);
+
+  // Слухач для отримання повідомлень від iframe після відправки форми
+  useEffect(() => {
+    function handleMessage(event) {
+      try {
+        // Перевіряємо, чи це JSON-повідомлення
+        if (event.data && typeof event.data === 'string') {
+          try {
+            const response = JSON.parse(event.data);
+            
+            // Обробляємо успіх або помилку
+            if (response.success) {
+              setStatus(response.message || "Дані відправлено");
+              setError(null);
+              
+              // Затримка перед відновленням стану форми
+              setTimeout(() => {
+                setIsSubmitting(false);
+              }, 2000);
+            } else {
+              // Обробка помилок
+              setError(response.message || "Сталася помилка");
+              setStatus("");
+              
+              // Відображаємо деталі помилки, якщо вони є
+              if (response.error === "NOT_ENOUGH_STOCK" && response.details) {
+                setError(`Недостатньо товару на складі. Наявно: ${response.details.currentStock}, потрібно: ${response.details.requestedQuantity}`);
+              }
+              
+              setIsSubmitting(false);
+            }
+          } catch (e) {
+            // Якщо не JSON, ігноруємо
+            console.log("Отримано не-JSON повідомлення:", event.data);
+          }
+        }
+      } catch (e) {
+        console.error("Помилка обробки повідомлення:", e);
+      }
+    }
+
+    // Додаємо слухач
+    window.addEventListener('message', handleMessage);
+    
+    // Прибираємо слухач при розмонтуванні
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
 
   // Функція для розбору QR-коду на назву та код товару
   const parseQrData = (qrText) => {
@@ -163,8 +214,10 @@ export default function QRScanner() {
     }
   };
 
-  // Form submission approach that bypasses CORS
+  // Form submission approach with message listening
   const sendToGoogleSheets = () => {
+    // Очищаємо попередні помилки і встановлюємо статус відправки
+    setError(null);
     setStatus("Відправка даних...");
     setIsSubmitting(true);
     
@@ -173,6 +226,7 @@ export default function QRScanner() {
     form.method = "POST";
     form.action = scriptUrl;
     form.target = "hidden-iframe"; // Target the hidden iframe
+    formRef.current = form;
     
     // Додаємо часову мітку
     const timestampField = document.createElement("input");
@@ -238,19 +292,27 @@ export default function QRScanner() {
     // Submit the form
     form.submit();
     
-    // Set timeout for status update
+    // Встановлюємо таймаут для автоматичного скидання статусу, якщо відповідь не отримана
     setTimeout(() => {
-      setStatus("Дані відправлено");
-      setIsSubmitting(false);
-    }, 3000);
+      if (isSubmitting) {
+        setStatus("Час очікування вичерпано");
+        setIsSubmitting(false);
+      }
+    }, 10000);
     
-    // Remove form from document
-    document.body.removeChild(form);
+    // Remove form from document after submission
+    setTimeout(() => {
+      if (formRef.current) {
+        document.body.removeChild(formRef.current);
+        formRef.current = null;
+      }
+    }, 500);
   };
   
   const scanAgain = () => {
     setScanning(true);
     setStatus("");
+    setError(null);
     setQrData("Скануй QR-код...");
     setProductName("");
     setProductCode("");
@@ -290,6 +352,25 @@ export default function QRScanner() {
         name="hidden-iframe"
         style={{ display: "none" }}
         title="Submission Frame"
+        onLoad={() => {
+          // При завантаженні iframe після відправки форми
+          try {
+            // Спроба отримати дані з iframe
+            const iframeDoc = iframeRef.current.contentDocument || iframeRef.current.contentWindow.document;
+            if (iframeDoc && iframeDoc.body && iframeDoc.body.textContent) {
+              try {
+                // Спроба розпарсити JSON
+                const responseData = JSON.parse(iframeDoc.body.textContent);
+                // Відправляємо повідомлення самі собі, щоб його обробив наш слухач
+                window.postMessage(iframeDoc.body.textContent, "*");
+              } catch (e) {
+                console.log("Відповідь не в JSON форматі");
+              }
+            }
+          } catch (e) {
+            console.error("Помилка при отриманні відповіді з iframe:", e);
+          }
+        }}
       />
       
       {scanning ? (
@@ -380,7 +461,11 @@ export default function QRScanner() {
             </div>
           </div>
           
+          {/* Відображення статусу відправки */}
           {status && <p className="status">{status}</p>}
+          
+          {/* Відображення помилок */}
+          {error && <p className="error">{error}</p>}
           
           <div className="buttons-container">
             <button 
@@ -480,10 +565,15 @@ export default function QRScanner() {
           max-width: 100px;
           width: 100px;
         }
-        .qr-input {
-          width: 100%;
+        .checkbox-group {
+          display: flex;
+          align-items: center;
+        }
+        .checkbox-field {
+          width: auto;
           max-width: none;
-          font-size: 14px;
+          margin-left: auto;
+          transform: scale(1.5);
         }
         select.input-field {
           background-color: white;
@@ -494,6 +584,14 @@ export default function QRScanner() {
           background-color: #e8f0fe;
           border-radius: 4px;
           margin: 15px 0;
+        }
+        .error {
+          color: #d23f31;
+          padding: 10px;
+          background-color: #ffebee;
+          border-radius: 4px;
+          margin: 15px 0;
+          font-weight: 500;
         }
         .buttons-container {
           display: flex;
@@ -515,22 +613,4 @@ export default function QRScanner() {
         }
         .scan-btn {
           background-color: #34a853;
-          color: white;
-          border: none;
-          padding: 12px 20px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 16px;
-          transition: background-color 0.2s;
-        }
-        .scan-btn:hover {
-          background-color: #2d9249;
-        }
-        .submit-btn:disabled, .scan-btn:disabled {
-          background-color: #a0a0a0;
-          cursor: not-allowed;
-        }
-      `}</style>
-    </div>
-  );
-}
+          color:
