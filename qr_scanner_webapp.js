@@ -391,3 +391,5 @@ export default function QRScanner() {
       setQuantity(value);
     } else if (e.target.value === "") {
       setQuantity("");
+    }
+  };
