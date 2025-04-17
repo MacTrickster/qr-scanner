@@ -13,13 +13,14 @@ export default function QRScanner() {
   const [quantity, setQuantity] = useState(1);
   const [team, setTeam] = useState("Команді A");
   const [isNewItem, setIsNewItem] = useState(false);
+  const [stockInfo, setStockInfo] = useState(null);
   
   const iframeRef = useRef(null);
   const scannerRef = useRef(null);
   const html5QrcodeRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbzf_H3JPU_dGIJWe-fCnkGNaUf1lAhOcImR9JA7MDeh9ZUrkZXvKHliiW3x2mnUknTRfQ/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbwfwvuYkAfzk_b5SSN0MTi6BShYkV8HMhhij6BbaLstBRQxgsh9kHrjMPC1Qo-cmJFPdA/exec";
 
   useEffect(() => {
     // Ініціалізуємо сканер при першому завантаженні компонента
@@ -66,6 +67,50 @@ export default function QRScanner() {
     } catch (e) {
       console.error("Помилка розбору QR-коду:", e);
       return { productName: "", productCode: "", rawData: qrText };
+    }
+  };
+
+  // Функція для отримання інформації про запаси
+  const fetchStockInfo = async (code) => {
+    try {
+      // JSONP запит для обходу CORS
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        const callbackName = 'jsonpCallback_' + Math.random().toString(36).substr(2, 9);
+        
+        // Створюємо функцію зворотного виклику
+        window[callbackName] = (data) => {
+          document.body.removeChild(script);
+          delete window[callbackName];
+          resolve(data);
+        };
+        
+        // Обробка помилок
+        script.onerror = () => {
+          document.body.removeChild(script);
+          delete window[callbackName];
+          reject(new Error("Не вдалося отримати дані про запаси"));
+        };
+        
+        // Створюємо URL запиту
+        const url = `${scriptUrl}?action=getInventory&code=${encodeURIComponent(code)}&callback=${callbackName}`;
+        script.src = url;
+        
+        // Додаємо скрипт до документа
+        document.body.appendChild(script);
+        
+        // Встановлюємо таймаут для запиту
+        setTimeout(() => {
+          if (window[callbackName]) {
+            document.body.removeChild(script);
+            delete window[callbackName];
+            reject(new Error("Час очікування запиту вичерпано"));
+          }
+        }, 10000);
+      });
+    } catch (error) {
+      console.error("Помилка при отриманні даних про запаси:", error);
+      throw error;
     }
   };
 
@@ -165,18 +210,52 @@ export default function QRScanner() {
     }
   };
 
+  // Функція для обробки змін QR даних
+  const processQrData = async (newQrData) => {
+    setQrData(newQrData);
+    
+    // Parse the QR data
+    const parsedData = parseQrData(newQrData);
+    setProductName(parsedData.productName);
+    setProductCode(parsedData.productCode);
+    
+    // Якщо є код товару, спробуйте отримати інформацію про запаси
+    if (parsedData.productCode) {
+      try {
+        setStatus("Отримання даних про наявність...");
+        const stockData = await fetchStockInfo(parsedData.productCode);
+        
+        if (stockData && stockData.success) {
+          setStockInfo({
+            available: stockData.stock,
+            code: stockData.code,
+            found: stockData.found
+          });
+          setStatus("");
+        } else {
+          setStockInfo(null);
+          setStatus("");
+          setError("Не вдалося отримати дані про наявність товару");
+        }
+      } catch (error) {
+        console.error("Помилка при отриманні даних про запаси:", error);
+        setStockInfo(null);
+        setStatus("");
+        setError("Помилка при отриманні даних про запаси");
+      }
+    }
+  };
+
   // Form submission approach that bypasses CORS
   const sendToGoogleSheets = () => {
-    // Додайте на початку функції
-  if ((itemStatus === "Видано зі складу" || itemStatus === "Брак") && productCode) {
-    // Зробіть безпосередню перевірку через prompt для демонстрації
-    const proceed = confirm(`Увага! Ви намагаєтесь ${itemStatus === "Видано зі складу" ? "видати" : "бракувати"} ${quantity} одиниць товару "${productName}" (${productCode}). 
-Чи впевнені ви, що на складі достатньо товару?`);
-    
-    if (!proceed) {
-      return; // Користувач відмовився продовжувати
+    // Перевіряємо наявність достатньої кількості товару
+    if (stockInfo && (itemStatus === "Видано зі складу" || itemStatus === "Брак")) {
+      if (stockInfo.available < quantity) {
+        setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
+        return; // Не продовжуємо відправку
+      }
     }
-  }
+    
     setError(null);
     setStatus("Відправка даних...");
     setIsSubmitting(true);
@@ -253,6 +332,21 @@ export default function QRScanner() {
     
     // Set timeout for status update
     setTimeout(() => {
+      // Оновлюємо локальні дані про запаси після відправки
+      if (stockInfo && (itemStatus === "Видано зі складу" || itemStatus === "Брак")) {
+        const newStock = Math.max(0, stockInfo.available - quantity);
+        setStockInfo({
+          ...stockInfo,
+          available: newStock
+        });
+      } else if (stockInfo && itemStatus === "Отримано") {
+        const newStock = stockInfo.available + quantity;
+        setStockInfo({
+          ...stockInfo,
+          available: newStock
+        });
+      }
+      
       setStatus("Дані відправлено");
       setIsSubmitting(false);
     }, 3000);
@@ -272,6 +366,7 @@ export default function QRScanner() {
     setQuantity(1); // Reset to default
     setTeam("Команді A"); // Reset to default team
     setIsNewItem(false); // Reset to default
+    setStockInfo(null); // Reset stock info
   };
 
   // Handle quantity change with validation
@@ -279,19 +374,18 @@ export default function QRScanner() {
     const value = parseInt(e.target.value);
     if (!isNaN(value) && value > 0) {
       setQuantity(value);
+      
+      // Перевіряємо наявність достатньої кількості товару при зміні кількості
+      if (stockInfo && (itemStatus === "Видано зі складу" || itemStatus === "Брак")) {
+        if (stockInfo.available < value) {
+          setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${value}`);
+        } else {
+          setError(null);
+        }
+      }
     } else if (e.target.value === "") {
       setQuantity("");
     }
-  };
-
-  // Функція для обробки змін QR даних
-  const processQrData = (newQrData) => {
-    setQrData(newQrData);
-    
-    // Parse the QR data
-    const parsedData = parseQrData(newQrData);
-    setProductName(parsedData.productName);
-    setProductCode(parsedData.productCode);
   };
 
   return (
@@ -344,6 +438,18 @@ export default function QRScanner() {
               />
             </div>
             
+            {/* Відображення інформації про запаси */}
+            {stockInfo && (
+              <div className="stock-info">
+                <div className={`stock-badge ${stockInfo.available < 5 ? 'low-stock' : 'normal-stock'}`}>
+                  <span className="stock-label">Наявність на складі:</span>
+                  <span className="stock-count">{stockInfo.available}</span>
+                  {stockInfo.available === 0 && <span className="stock-alert"> (Немає на складі!)</span>}
+                  {stockInfo.available > 0 && stockInfo.available < 5 && <span className="stock-warning"> (Мало на складі!)</span>}
+                </div>
+              </div>
+            )}
+            
             <div className="option-group checkbox-group">
               <label htmlFor="isNewItem">Новий товар:</label>
               <input
@@ -360,7 +466,16 @@ export default function QRScanner() {
               <select 
                 id="itemStatus" 
                 value={itemStatus} 
-                onChange={(e) => setItemStatus(e.target.value)}
+                onChange={(e) => {
+                  setItemStatus(e.target.value);
+                  // Перевіряємо запаси при зміні статусу
+                  if ((e.target.value === "Видано зі складу" || e.target.value === "Брак") && 
+                      stockInfo && stockInfo.available < quantity) {
+                    setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
+                  } else {
+                    setError(null);
+                  }
+                }}
                 className="input-field"
               >
                 <option value="Отримано">Отримано</option>
@@ -410,7 +525,8 @@ export default function QRScanner() {
             <button 
               className="submit-btn" 
               onClick={sendToGoogleSheets}
-              disabled={isSubmitting || quantity === "" || quantity < 1 || !productName || !productCode}
+              disabled={isSubmitting || quantity === "" || quantity < 1 || !productName || !productCode || 
+                ((itemStatus === "Видано зі складу" || itemStatus === "Брак") && stockInfo && stockInfo.available < quantity)}
             >
               {isSubmitting ? "Відправка..." : "📤 Відправити дані"}
             </button>
@@ -531,6 +647,41 @@ export default function QRScanner() {
           border-radius: 4px;
           margin: 15px 0;
           font-weight: 500;
+        }
+        .stock-info {
+          margin: 15px 0;
+          padding: 12px;
+          border-radius: 6px;
+          background-color: #f5f5f5;
+          text-align: center;
+        }
+        .stock-badge {
+          display: inline-block;
+          padding: 5px 10px;
+          border-radius: 4px;
+          font-weight: 500;
+          font-size: 16px;
+        }
+        .normal-stock {
+          background-color: #e8f5e9;
+          color: #2e7d32;
+        }
+        .low-stock {
+          background-color: #ffebee;
+          color: #c62828;
+        }
+        .stock-count {
+          margin-left: 5px;
+          font-size: 18px;
+          font-weight: bold;
+        }
+        .stock-alert {
+          color: #d32f2f;
+          font-weight: bold;
+        }
+        .stock-warning {
+          color: #f57c00;
+          font-weight: bold;
         }
         .buttons-container {
           display: flex;
