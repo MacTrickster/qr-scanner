@@ -23,7 +23,7 @@ export default function QRScanner() {
   const html5QrcodeRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbywFvI46LtHK4OujZRxITp0O88mJRXQAhl1YH7erhkAE2gl-UMVbcDCgGnJjRXxHzjH/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbweKRtwGAVucTbCPe6KL_XuNCDexxSvIAWesTOpmVBPNOoN0w3OE82-kRIXsT-liCldiw/exec";
 
   // Визначення доступних дій для кожної станції
   const actionOptions = {
@@ -78,33 +78,39 @@ export default function QRScanner() {
     }
   }, [quantity, station, action, stockInfo]);
 
-  // Функція для перевірки обмежень кількості
-  const validateQuantityConstraints = () => {
-    if (!stockInfo) return;
-    
-    // Перевірка для Складу
-    if (station === "Склад") {
-      if ((action === "В Ремонт" || action === "Видано") && stockInfo.available < quantity) {
-        setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
-        return false;
-      } else if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
-        setError(`Недостатньо замовленого товару! Замовлено: ${stockInfo.ordered}, запитано: ${quantity}`);
-        return false;
-      }
+  // Функція для перевірки обмежень кількості з підтримкою Виробництва
+const validateQuantityConstraints = () => {
+  if (!stockInfo) return;
+  
+  // Перевірка для Складу
+  if (station === "Склад") {
+    if ((action === "В Ремонт" || action === "Видано") && stockInfo.available < quantity) {
+      setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
+      return false;
+    } else if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
+      setError(`Недостатньо замовленого товару! Замовлено: ${stockInfo.ordered}, запитано: ${quantity}`);
+      return false;
     }
-    // Перевірка для Ремонту
-    else if (station === "Ремонт") {
-      if ((action === "Склад" || action === "Брак") && stockInfo.inRepair < quantity) {
-        setError(`Недостатньо товару в ремонті! Наявно: ${stockInfo.inRepair}, запитано: ${quantity}`);
-        return false;
-      }
+  }
+  // Перевірка для Ремонту
+  else if (station === "Ремонт") {
+    if ((action === "Склад" || action === "Брак") && stockInfo.inRepair < quantity) {
+      setError(`Недостатньо товару в ремонті! Наявно: ${stockInfo.inRepair}, запитано: ${quantity}`);
+      return false;
     }
-    // TODO: Додати перевірку для Виробництва коли буде логіка обліку виданих товарів
-    
-    // Якщо всі перевірки пройдені, скидаємо помилку
-    setError(null);
-    return true;
-  };
+  }
+  // Перевірка для Виробництва - додана нова перевірка
+  else if (station === "Виробництво") {
+    if ((action === "В Ремонт" || action === "Залишки") && stockInfo.inProduction < quantity) {
+      setError(`Недостатньо товару в роботі! Наявно: ${stockInfo.inProduction}, запитано: ${quantity}`);
+      return false;
+    }
+  }
+  
+  // Якщо всі перевірки пройдені, скидаємо помилку
+  setError(null);
+  return true;
+};
 
   // Функція для розбору QR-коду на назву та код товару
   const parseQrData = (qrText) => {
@@ -131,49 +137,49 @@ export default function QRScanner() {
     }
   };
 
-  // Функція для отримання інформації про запаси
-  const fetchStockInfo = async (code) => {
-    try {
-      // JSONP запит для обходу CORS
-      return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        const callbackName = 'jsonpCallback_' + Math.random().toString(36).substr(2, 9);
-        
-        // Створюємо функцію зворотного виклику
-        window[callbackName] = (data) => {
+// Оновлена функція fetchStockInfo, щоб отримувати дані "В роботі"
+const fetchStockInfo = async (code) => {
+  try {
+    // JSONP запит для обходу CORS
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      const callbackName = 'jsonpCallback_' + Math.random().toString(36).substr(2, 9);
+      
+      // Створюємо функцію зворотного виклику
+      window[callbackName] = (data) => {
+        document.body.removeChild(script);
+        delete window[callbackName];
+        resolve(data);
+      };
+      
+      // Обробка помилок
+      script.onerror = () => {
+        document.body.removeChild(script);
+        delete window[callbackName];
+        reject(new Error("Не вдалося отримати дані про наявність товару"));
+      };
+      
+      // Створюємо URL запиту
+      const url = `${scriptUrl}?action=getInventory&code=${encodeURIComponent(code)}&callback=${callbackName}`;
+      script.src = url;
+      
+      // Додаємо скрипт до документа
+      document.body.appendChild(script);
+      
+      // Встановлюємо таймаут для запиту
+      setTimeout(() => {
+        if (window[callbackName]) {
           document.body.removeChild(script);
           delete window[callbackName];
-          resolve(data);
-        };
-        
-        // Обробка помилок
-        script.onerror = () => {
-          document.body.removeChild(script);
-          delete window[callbackName];
-          reject(new Error("Не вдалося отримати дані про наявність товару"));
-        };
-        
-        // Створюємо URL запиту
-        const url = `${scriptUrl}?action=getInventory&code=${encodeURIComponent(code)}&callback=${callbackName}`;
-        script.src = url;
-        
-        // Додаємо скрипт до документа
-        document.body.appendChild(script);
-        
-        // Встановлюємо таймаут для запиту
-        setTimeout(() => {
-          if (window[callbackName]) {
-            document.body.removeChild(script);
-            delete window[callbackName];
-            reject(new Error("Час очікування запиту вичерпано"));
-          }
-        }, 10000);
-      });
-    } catch (error) {
-      console.error("Помилка при отриманні даних про запаси:", error);
-      throw error;
-    }
-  };
+          reject(new Error("Час очікування запиту вичерпано"));
+        }
+      }, 10000);
+    });
+  } catch (error) {
+    console.error("Помилка при отриманні даних про запаси:", error);
+    throw error;
+  }
+};
 
   const initializeScanner = async () => {
     try {
@@ -287,45 +293,46 @@ export default function QRScanner() {
     }
   };
 
-  // Функція для оновлення інформації про запаси
-  const refreshStockInfo = async (code = null) => {
-    const productCodeToUse = code || productCode;
-    if (!productCodeToUse) {
-      setError("Код товару відсутній. Спочатку відскануйте QR-код.");
-      return;
-    }
+// Оновлена функція refreshStockInfo для збереження даних про кількість "В роботі"
+const refreshStockInfo = async (code = null) => {
+  const productCodeToUse = code || productCode;
+  if (!productCodeToUse) {
+    setError("Код товару відсутній. Спочатку відскануйте QR-код.");
+    return;
+  }
 
-    try {
-      setIsRefreshing(true);
-      setStatus("Отримання даних про наявність...");
-      const stockData = await fetchStockInfo(productCodeToUse);
+  try {
+    setIsRefreshing(true);
+    setStatus("Отримання даних про наявність...");
+    const stockData = await fetchStockInfo(productCodeToUse);
+    
+    if (stockData && stockData.success) {
+      setStockInfo({
+        available: stockData.stock,            // Наявна кількість на складі (колонка B)
+        inRepair: stockData.inRepair || 0,     // Кількість в ремонті (колонка C)
+        ordered: stockData.ordered || 0,       // Замовлено (колонка D)
+        inProduction: stockData.inProduction || 0, // В роботі (колонка E)
+        code: stockData.code,
+        found: stockData.found
+      });
+      setStatus("");
       
-      if (stockData && stockData.success) {
-        setStockInfo({
-          available: stockData.stock,            // Наявна кількість на складі (колонка B)
-          inRepair: stockData.inRepair || 0,     // Кількість в ремонті (колонка C)
-          ordered: stockData.ordered || 0,       // Замовлено (колонка D)
-          code: stockData.code,
-          found: stockData.found
-        });
-        setStatus("");
-        
-        // Перевіряємо обмеження кількості з новими даними
-        setTimeout(() => validateQuantityConstraints(), 100);
-      } else {
-        setStockInfo(null);
-        setStatus("");
-        setError("Не вдалося отримати дані про наявність товару");
-      }
-    } catch (error) {
-      console.error("Помилка при отриманні даних про запаси:", error);
+      // Перевіряємо обмеження кількості з новими даними
+      setTimeout(() => validateQuantityConstraints(), 100);
+    } else {
       setStockInfo(null);
       setStatus("");
-      setError("Помилка при отриманні даних про запаси");
-    } finally {
-      setIsRefreshing(false);
+      setError("Не вдалося отримати дані про наявність товару");
     }
-  };
+  } catch (error) {
+    console.error("Помилка при отриманні даних про запаси:", error);
+    setStockInfo(null);
+    setStatus("");
+    setError("Помилка при отриманні даних про запаси");
+  } finally {
+    setIsRefreshing(false);
+  }
+};
 
   // Form submission approach that bypasses CORS
   const sendToGoogleSheets = () => {
