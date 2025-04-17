@@ -855,3 +855,8 @@ export default function QRScanner() {
           background-color: #a0a0a0;
           cursor: not-allowed;
         }
+}
+      `}</style>
+    </div>
+  );
+}
