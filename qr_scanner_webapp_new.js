@@ -23,7 +23,7 @@ export default function QRScanner() {
   const html5QrcodeRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbzw-aBHGk0b2-ZMNoXXZ3u8p7V-ZkFg36xv-x62hZOqTeLI8aq45pB4DfYNKEgPyrhQfA/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbywFvI46LtHK4OujZRxITp0O88mJRXQAhl1YH7erhkAE2gl-UMVbcDCgGnJjRXxHzjH/exec";
 
   // Визначення доступних дій для кожної станції
   const actionOptions = {
@@ -70,6 +70,41 @@ export default function QRScanner() {
       setProductName(originalProductName);
     }
   }, [isNewItem, originalProductName]);
+
+  // Перевіряємо обмеження кількості при зміні кількості, станції або дії
+  useEffect(() => {
+    if (stockInfo && !isNewItem) {
+      validateQuantityConstraints();
+    }
+  }, [quantity, station, action, stockInfo]);
+
+  // Функція для перевірки обмежень кількості
+  const validateQuantityConstraints = () => {
+    if (!stockInfo) return;
+    
+    // Перевірка для Складу
+    if (station === "Склад") {
+      if ((action === "В Ремонт" || action === "Видано") && stockInfo.available < quantity) {
+        setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
+        return false;
+      } else if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
+        setError(`Недостатньо замовленого товару! Замовлено: ${stockInfo.ordered}, запитано: ${quantity}`);
+        return false;
+      }
+    }
+    // Перевірка для Ремонту
+    else if (station === "Ремонт") {
+      if ((action === "Склад" || action === "Брак") && stockInfo.inRepair < quantity) {
+        setError(`Недостатньо товару в ремонті! Наявно: ${stockInfo.inRepair}, запитано: ${quantity}`);
+        return false;
+      }
+    }
+    // TODO: Додати перевірку для Виробництва коли буде логіка обліку виданих товарів
+    
+    // Якщо всі перевірки пройдені, скидаємо помилку
+    setError(null);
+    return true;
+  };
 
   // Функція для розбору QR-коду на назву та код товару
   const parseQrData = (qrText) => {
@@ -274,6 +309,9 @@ export default function QRScanner() {
           found: stockData.found
         });
         setStatus("");
+        
+        // Перевіряємо обмеження кількості з новими даними
+        setTimeout(() => validateQuantityConstraints(), 100);
       } else {
         setStockInfo(null);
         setStatus("");
@@ -292,19 +330,8 @@ export default function QRScanner() {
   // Form submission approach that bypasses CORS
   const sendToGoogleSheets = () => {
     // Перевіряємо обмеження переміщень на основі наявності
-    // TODO: Додати перевірки відповідно до нової логіки Станція-Дія
-    // Наприклад, для Склад -> В Ремонт, перевіряємо наявність на складі
-    if (station === "Склад" && (action === "В Ремонт" || action === "Видано") && 
-        stockInfo && stockInfo.available < quantity) {
-      setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
-      return;
-    }
-    
-    // Для Ремонт -> Склад, перевіряємо наявність в ремонті
-    if (station === "Ремонт" && action === "Склад" && 
-        stockInfo && stockInfo.inRepair < quantity) {
-      setError(`Недостатньо товару в ремонті! Наявно: ${stockInfo.inRepair}, запитано: ${quantity}`);
-      return;
+    if (!validateQuantityConstraints()) {
+      return; // Не продовжуємо, якщо не пройшли перевірку
     }
     
     setError(null);
@@ -413,17 +440,7 @@ export default function QRScanner() {
     const value = parseInt(e.target.value);
     if (!isNaN(value) && value > 0) {
       setQuantity(value);
-      
-      // Перевіряємо наявність достатньої кількості товару при зміні кількості
-      if (station === "Склад" && (action === "В Ремонт" || action === "Видано") && 
-          stockInfo && stockInfo.available < value) {
-        setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${value}`);
-      } else if (station === "Ремонт" && action === "Склад" && 
-                 stockInfo && stockInfo.inRepair < value) {
-        setError(`Недостатньо товару в ремонті! Наявно: ${stockInfo.inRepair}, запитано: ${value}`);
-      } else {
-        setError(null);
-      }
+      // Перевірка обмежень відбувається в useEffect
     } else if (e.target.value === "") {
       setQuantity("");
     }
@@ -445,6 +462,36 @@ export default function QRScanner() {
   const handleNewItemChange = (e) => {
     const isNew = e.target.checked;
     setIsNewItem(isNew);
+  };
+
+  // Перевіряємо, чи кнопка відправки має бути відключена
+  const isSubmitDisabled = () => {
+    if (isSubmitting || isRefreshing || quantity === "" || quantity < 1 || !productName || 
+        (!isNewItem && !productCode)) {
+      return true;
+    }
+    
+    // Перевірка обмежень для існуючих товарів
+    if (!isNewItem && stockInfo) {
+      // Склад
+      if (station === "Склад") {
+        if ((action === "В Ремонт" || action === "Видано") && stockInfo.available < quantity) {
+          return true;
+        }
+        if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
+          return true;
+        }
+      }
+      // Ремонт
+      else if (station === "Ремонт") {
+        if ((action === "Склад" || action === "Брак") && stockInfo.inRepair < quantity) {
+          return true;
+        }
+      }
+      // TODO: Додати перевірки для Виробництва
+    }
+    
+    return false;
   };
 
   return (
@@ -609,12 +656,7 @@ export default function QRScanner() {
             <button 
               className="submit-btn" 
               onClick={sendToGoogleSheets}
-              disabled={isSubmitting || isRefreshing || quantity === "" || quantity < 1 || !productName || 
-                (!isNewItem && !productCode) || 
-                (station === "Склад" && (action === "В Ремонт" || action === "Видано") && 
-                 stockInfo && stockInfo.available < quantity) ||
-                (station === "Ремонт" && action === "Склад" && 
-                 stockInfo && stockInfo.inRepair < quantity)}
+              disabled={isSubmitDisabled()}
             >
               {isSubmitting ? "Відправка..." : "📤 Відправити дані"}
             </button>
@@ -644,65 +686,6 @@ export default function QRScanner() {
           margin: 0 auto;
           padding: 20px;
           text-align: center;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-        }
-        h1 {
-          color: #333;
-          margin-bottom: 20px;
-        }
-        #reader {
-          width: 100%;
-          margin: 0 auto;
-          border-radius: 8px;
-          overflow: hidden;
-          min-height: 300px;
-          position: relative;
-          background-color: #f0f0f0;
-        }
-        #reader video {
-          border-radius: 8px;
-        }
-        .instruction {
-          color: #666;
-          margin-top: 15px;
-          font-size: 14px;
-        }
-        .result-container {
-          background-color: #f9f9f9;
-          border-radius: 8px;
-          padding: 20px;
-          margin-top: 20px;
-          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .result {
-          font-weight: bold;
-          margin-bottom: 15px;
-        }
-        .data {
-          word-break: break-all;
-          font-weight: normal;
-          color: #4285f4;
-        }
-        .options-container {
-          background-color: #fff;
-          border: 1px solid #e0e0e0;
-          border-radius: 6px;
-          padding: 15px;
-          margin: 15px 0;
-        }
-        .option-group {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 12px;
-        }
-        .option-group:last-child {
-          margin-bottom: 0;
-        }
-        .name-group {
-          align-items: flex-start;
-        }
-        label {
           font-weight: 500;
           color: #333;
           margin-right: 10px;
@@ -855,8 +838,66 @@ export default function QRScanner() {
           background-color: #a0a0a0;
           cursor: not-allowed;
         }
-}
       `}</style>
     </div>
   );
-}
+}family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+        h1 {
+          color: #333;
+          margin-bottom: 20px;
+        }
+        #reader {
+          width: 100%;
+          margin: 0 auto;
+          border-radius: 8px;
+          overflow: hidden;
+          min-height: 300px;
+          position: relative;
+          background-color: #f0f0f0;
+        }
+        #reader video {
+          border-radius: 8px;
+        }
+        .instruction {
+          color: #666;
+          margin-top: 15px;
+          font-size: 14px;
+        }
+        .result-container {
+          background-color: #f9f9f9;
+          border-radius: 8px;
+          padding: 20px;
+          margin-top: 20px;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .result {
+          font-weight: bold;
+          margin-bottom: 15px;
+        }
+        .data {
+          word-break: break-all;
+          font-weight: normal;
+          color: #4285f4;
+        }
+        .options-container {
+          background-color: #fff;
+          border: 1px solid #e0e0e0;
+          border-radius: 6px;
+          padding: 15px;
+          margin: 15px 0;
+        }
+        .option-group {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 12px;
+        }
+        .option-group:last-child {
+          margin-bottom: 0;
+        }
+        .name-group {
+          align-items: flex-start;
+        }
+        label {
+          font-
