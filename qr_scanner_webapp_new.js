@@ -481,6 +481,8 @@ export default function QRScanner() {
                 <option value="Отримано">Отримано</option>
                 <option value="Видано зі складу">Видано зі складу</option>
                 <option value="Брак">Брак</option>
+                <option value="В ремонті">В ремонті</option>
+                <option value="Відремонтовано">Відремонтовано</option>
               </select>
             </div>
             
