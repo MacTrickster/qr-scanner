@@ -3,23 +3,119 @@ import React, { useEffect, useState, useRef } from "react";
 
 export default function QRScanner() {
   const [qrData, setQrData] = useState("Скануй QR-код...");
-  const [productName, setProductName] = useState(""); // Нове поле для назви товару
-  const [productCode, setProductCode] = useState(""); // Нове поле для коду товару
+  const [productName, setProductName] = useState("");
+  const [productCode, setProductCode] = useState("");
   const [scanning, setScanning] = useState(true);
   const [status, setStatus] = useState("");
-  const [error, setError] = useState(null); // Для зберігання помилок
+  const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [itemStatus, setItemStatus] = useState("Отримано"); // Default status
-  const [quantity, setQuantity] = useState(1); // Default quantity
-  const [team, setTeam] = useState("Команді A"); // Default team
-  const [isNewItem, setIsNewItem] = useState(false); // Новий стан для позначення нового товару
+  const [itemStatus, setItemStatus] = useState("Отримано");
+  const [quantity, setQuantity] = useState(1);
+  const [team, setTeam] = useState("Команді A");
+  const [isNewItem, setIsNewItem] = useState(false);
+  
+  // Додаємо стан для локальної перевірки рівня запасів
+  const [inventoryLevels, setInventoryLevels] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
+  
   const iframeRef = useRef(null);
-  const formRef = useRef(null); // Референція для форми
   const scannerRef = useRef(null);
   const html5QrcodeRef = useRef(null);
   
-  // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbzjHL98-6FA2c5kX_RonmseWIOi31QMmNQBpKvYTOo_vTVwsoQKdmPSmx0O6apxKbNb6g/exec";
+  // Google Apps Script web app URL
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbz4LUTD_KUAVM2_zameGY_zBrQafR3fowqiPgm8b8IMhsUH7WyZ6fo1fUU-OdwB1D3ZWg/exec";
+
+  // При завантаженні компонента - отримати дані запасів
+  useEffect(() => {
+    fetchInventoryLevels();
+  }, []);
+  
+  // При зміні статусу - також перевіряємо запаси
+  useEffect(() => {
+    if ((itemStatus === "Видано зі складу" || itemStatus === "Брак") && productCode) {
+      checkInventoryLevel(productCode, quantity);
+    } else {
+      // Скидаємо помилку, якщо змінився статус на "Отримано"
+      setError(null);
+    }
+  }, [itemStatus, productCode]);
+  
+  // При зміні кількості - перевіряємо запаси
+  useEffect(() => {
+    if ((itemStatus === "Видано зі складу" || itemStatus === "Брак") && productCode) {
+      checkInventoryLevel(productCode, quantity);
+    }
+  }, [quantity]);
+
+  // Функція для отримання даних запасів з Google Sheets
+  const fetchInventoryLevels = async () => {
+    setIsLoading(true);
+    try {
+      // Створюємо URL для запиту, додаємо параметр action=getInventory
+      const fetchUrl = `${scriptUrl}?action=getInventory&_=${new Date().getTime()}`;
+      
+      // Використовуємо технiку JSONP для обходу CORS
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        const callbackName = 'jsonpCallback_' + Math.random().toString(36).substr(2, 9);
+        
+        window[callbackName] = (data) => {
+          setInventoryLevels(data.inventory || {});
+          setIsLoading(false);
+          document.body.removeChild(script);
+          delete window[callbackName];
+          resolve(data);
+        };
+        
+        script.onerror = () => {
+          setIsLoading(false);
+          setError("Не вдалося отримати дані про запаси");
+          document.body.removeChild(script);
+          delete window[callbackName];
+          reject();
+        };
+        
+        script.src = `${fetchUrl}&callback=${callbackName}`;
+        document.body.appendChild(script);
+        
+        // Встановлюємо таймаут
+        setTimeout(() => {
+          if (window[callbackName]) {
+            setIsLoading(false);
+            setError("Час очікування вичерпано при отриманні даних запасів");
+            document.body.removeChild(script);
+            delete window[callbackName];
+            reject();
+          }
+        }, 10000);
+      });
+    } catch (err) {
+      console.error("Помилка отримання запасів:", err);
+      setError("Помилка отримання даних про запаси");
+      setIsLoading(false);
+    }
+  };
+  
+  // Функція для перевірки наявності достатньої кількості товару
+  const checkInventoryLevel = (code, qty) => {
+    if (!code || !inventoryLevels) return;
+    
+    const stock = inventoryLevels[code];
+    if (stock !== undefined) {
+      if (stock < qty) {
+        setError(`Недостатньо товару на складі! Наявно: ${stock}, запитано: ${qty}`);
+      } else {
+        setError(null);
+      }
+    } else {
+      // Товар не знайдено в базі
+      if (!isNewItem && (itemStatus === "Видано зі складу" || itemStatus === "Брак")) {
+        setError("Товар не знайдено в базі. Відмітьте як 'Новий товар' або перевірте код");
+      } else {
+        setError(null);
+      }
+    }
+  };
 
   useEffect(() => {
     // Ініціалізуємо сканер при першому завантаженні компонента
@@ -43,55 +139,6 @@ export default function QRScanner() {
       }
     };
   }, [scanning]);
-
-  // Слухач для отримання повідомлень від iframe після відправки форми
-  useEffect(() => {
-    function handleMessage(event) {
-      try {
-        // Перевіряємо, чи це JSON-повідомлення
-        if (event.data && typeof event.data === 'string') {
-          try {
-            const response = JSON.parse(event.data);
-            
-            // Обробляємо успіх або помилку
-            if (response.success) {
-              setStatus(response.message || "Дані відправлено");
-              setError(null);
-              
-              // Затримка перед відновленням стану форми
-              setTimeout(() => {
-                setIsSubmitting(false);
-              }, 2000);
-            } else {
-              // Обробка помилок
-              setError(response.message || "Сталася помилка");
-              setStatus("");
-              
-              // Відображаємо деталі помилки, якщо вони є
-              if (response.error === "NOT_ENOUGH_STOCK" && response.details) {
-                setError(`Недостатньо товару на складі. Наявно: ${response.details.currentStock}, потрібно: ${response.details.requestedQuantity}`);
-              }
-              
-              setIsSubmitting(false);
-            }
-          } catch (e) {
-            // Якщо не JSON, ігноруємо
-            console.log("Отримано не-JSON повідомлення:", event.data);
-          }
-        }
-      } catch (e) {
-        console.error("Помилка обробки повідомлення:", e);
-      }
-    }
-
-    // Додаємо слухач
-    window.addEventListener('message', handleMessage);
-    
-    // Прибираємо слухач при розмонтуванні
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, []);
 
   // Функція для розбору QR-коду на назву та код товару
   const parseQrData = (qrText) => {
@@ -178,7 +225,6 @@ export default function QRScanner() {
     
     const qrCodeErrorCallback = (error) => {
       // Ігноруємо помилки сканування, вони нормальні коли QR-код не видно
-      // console.error("QR scan error:", error);
     };
     
     // Якщо передано конкретний ідентифікатор пристрою, використовуємо його
@@ -214,9 +260,17 @@ export default function QRScanner() {
     }
   };
 
-  // Form submission approach with message listening
+  // Відправка форми через традиційний метод
   const sendToGoogleSheets = () => {
-    // Очищаємо попередні помилки і встановлюємо статус відправки
+    // Перевіряємо наявність достатньої кількості товару перед відправкою
+    if ((itemStatus === "Видано зі складу" || itemStatus === "Брак") && productCode) {
+      const stock = inventoryLevels[productCode];
+      if (stock !== undefined && stock < quantity) {
+        setError(`Недостатньо товару на складі! Наявно: ${stock}, запитано: ${quantity}`);
+        return; // Не продовжуємо відправку, якщо недостатньо товару
+      }
+    }
+    
     setError(null);
     setStatus("Відправка даних...");
     setIsSubmitting(true);
@@ -226,7 +280,6 @@ export default function QRScanner() {
     form.method = "POST";
     form.action = scriptUrl;
     form.target = "hidden-iframe"; // Target the hidden iframe
-    formRef.current = form;
     
     // Додаємо часову мітку
     const timestampField = document.createElement("input");
@@ -263,21 +316,12 @@ export default function QRScanner() {
     quantityField.value = quantity;
     form.appendChild(quantityField);
     
-    // Додаємо команду, якщо вибрано "Видано зі складу"
-    if (itemStatus === "Видано зі складу") {
-      const teamField = document.createElement("input");
-      teamField.type = "hidden";
-      teamField.name = "team";
-      teamField.value = team;
-      form.appendChild(teamField);
-    } else {
-      // Додаємо пусте поле для команди, щоб порядок стовпців зберігався
-      const teamField = document.createElement("input");
-      teamField.type = "hidden";
-      teamField.name = "team";
-      teamField.value = "";
-      form.appendChild(teamField);
-    }
+    // Додаємо команду
+    const teamField = document.createElement("input");
+    teamField.type = "hidden";
+    teamField.name = "team";
+    teamField.value = itemStatus === "Видано зі складу" ? team : "";
+    form.appendChild(teamField);
     
     // Додаємо інформацію про новий товар
     const isNewItemField = document.createElement("input");
@@ -292,21 +336,39 @@ export default function QRScanner() {
     // Submit the form
     form.submit();
     
-    // Встановлюємо таймаут для автоматичного скидання статусу, якщо відповідь не отримана
+    // Set timeout for status update
     setTimeout(() => {
-      if (isSubmitting) {
-        setStatus("Час очікування вичерпано");
-        setIsSubmitting(false);
+      // Оновлюємо запаси після відправки форми
+      if (itemStatus === "Отримано") {
+        // Оновлюємо локальний кеш запасів - збільшуємо
+        if (productCode) {
+          setInventoryLevels(prev => {
+            const currentStock = prev[productCode] || 0;
+            return {
+              ...prev,
+              [productCode]: currentStock + parseInt(quantity)
+            };
+          });
+        }
+      } else if (itemStatus === "Видано зі складу" || itemStatus === "Брак") {
+        // Оновлюємо локальний кеш запасів - зменшуємо
+        if (productCode) {
+          setInventoryLevels(prev => {
+            const currentStock = prev[productCode] || 0;
+            return {
+              ...prev,
+              [productCode]: Math.max(0, currentStock - parseInt(quantity))
+            };
+          });
+        }
       }
-    }, 10000);
+      
+      setStatus("Дані відправлено");
+      setIsSubmitting(false);
+    }, 3000);
     
-    // Remove form from document after submission
-    setTimeout(() => {
-      if (formRef.current) {
-        document.body.removeChild(formRef.current);
-        formRef.current = null;
-      }
-    }, 500);
+    // Remove form from document
+    document.body.removeChild(form);
   };
   
   const scanAgain = () => {
@@ -329,288 +391,3 @@ export default function QRScanner() {
       setQuantity(value);
     } else if (e.target.value === "") {
       setQuantity("");
-    }
-  };
-
-  // Функція для обробки змін QR даних, залишаємо для обробки даних після сканування
-  const processQrData = (newQrData) => {
-    setQrData(newQrData);
-    
-    // Parse the QR data
-    const parsedData = parseQrData(newQrData);
-    setProductName(parsedData.productName);
-    setProductCode(parsedData.productCode);
-  };
-
-  return (
-    <div className="container">
-      <h1>📷 Сканер QR-кодів</h1>
-      
-      {/* Hidden iframe for form submission */}
-      <iframe 
-        ref={iframeRef}
-        name="hidden-iframe"
-        style={{ display: "none" }}
-        title="Submission Frame"
-        onLoad={() => {
-          // При завантаженні iframe після відправки форми
-          try {
-            // Спроба отримати дані з iframe
-            const iframeDoc = iframeRef.current.contentDocument || iframeRef.current.contentWindow.document;
-            if (iframeDoc && iframeDoc.body && iframeDoc.body.textContent) {
-              try {
-                // Спроба розпарсити JSON
-                const responseData = JSON.parse(iframeDoc.body.textContent);
-                // Відправляємо повідомлення самі собі, щоб його обробив наш слухач
-                window.postMessage(iframeDoc.body.textContent, "*");
-              } catch (e) {
-                console.log("Відповідь не в JSON форматі");
-              }
-            }
-          } catch (e) {
-            console.error("Помилка при отриманні відповіді з iframe:", e);
-          }
-        }}
-      />
-      
-      {scanning ? (
-        <div>
-          <div id="reader" ref={scannerRef}></div>
-          <p className="instruction">Наведіть камеру на QR-код для сканування</p>
-        </div>
-      ) : (
-        <div className="result-container">
-          <div className="options-container">
-            <div className="option-group">
-              <label htmlFor="productName">Назва:</label>
-              <input
-                id="productName"
-                type="text"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                className="input-field"
-                // Поле можна редагувати
-              />
-            </div>
-            
-            <div className="option-group">
-              <label htmlFor="productCode">Код:</label>
-              <input
-                id="productCode"
-                type="text"
-                value={productCode}
-                onChange={(e) => setProductCode(e.target.value)}
-                className="input-field"
-                readOnly // Це поле залишається тільки для читання
-              />
-            </div>
-            
-            <div className="option-group checkbox-group">
-              <label htmlFor="isNewItem">Новий товар:</label>
-              <input
-                id="isNewItem"
-                type="checkbox"
-                checked={isNewItem}
-                onChange={(e) => setIsNewItem(e.target.checked)}
-                className="checkbox-field"
-              />
-            </div>
-            
-            <div className="option-group">
-              <label htmlFor="itemStatus">Статус:</label>
-              <select 
-                id="itemStatus" 
-                value={itemStatus} 
-                onChange={(e) => setItemStatus(e.target.value)}
-                className="input-field"
-              >
-                <option value="Отримано">Отримано</option>
-                <option value="Видано зі складу">Видано зі складу</option>
-                <option value="Брак">Брак</option>
-              </select>
-            </div>
-            
-            {/* Показувати вибір команди тільки якщо вибрано "Видано зі складу" */}
-            {itemStatus === "Видано зі складу" && (
-              <div className="option-group">
-                <label htmlFor="team">Кому:</label>
-                <select 
-                  id="team" 
-                  value={team} 
-                  onChange={(e) => setTeam(e.target.value)}
-                  className="input-field"
-                >
-                  <option value="Команді A">Команді A</option>
-                  <option value="Команді B">Команді B</option>
-                  <option value="Команді C">Команді C</option>
-                  <option value="Команді D">Команді D</option>
-                </select>
-              </div>
-            )}
-            
-            <div className="option-group">
-              <label htmlFor="quantity">Кількість:</label>
-              <input 
-                id="quantity" 
-                type="number" 
-                min="1" 
-                value={quantity} 
-                onChange={handleQuantityChange}
-                className="input-field quantity-field"
-              />
-            </div>
-          </div>
-          
-          {/* Відображення статусу відправки */}
-          {status && <p className="status">{status}</p>}
-          
-          {/* Відображення помилок */}
-          {error && <p className="error">{error}</p>}
-          
-          <div className="buttons-container">
-            <button 
-              className="submit-btn" 
-              onClick={sendToGoogleSheets}
-              disabled={isSubmitting || quantity === "" || quantity < 1 || !productName || !productCode}
-            >
-              {isSubmitting ? "Відправка..." : "📤 Відправити дані"}
-            </button>
-            
-            <button 
-              className="scan-btn" 
-              onClick={scanAgain}
-              disabled={isSubmitting}
-            >
-              🔄 Сканувати інший QR-код
-            </button>
-          </div>
-        </div>
-      )}
-      
-      <style jsx>{`
-        .container {
-          max-width: 500px;
-          margin: 0 auto;
-          padding: 20px;
-          text-align: center;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-        }
-        h1 {
-          color: #333;
-          margin-bottom: 20px;
-        }
-        #reader {
-          width: 100%;
-          margin: 0 auto;
-          border-radius: 8px;
-          overflow: hidden;
-          min-height: 300px;
-          position: relative;
-          background-color: #f0f0f0;
-        }
-        #reader video {
-          border-radius: 8px;
-        }
-        .instruction {
-          color: #666;
-          margin-top: 15px;
-          font-size: 14px;
-        }
-        .result-container {
-          background-color: #f9f9f9;
-          border-radius: 8px;
-          padding: 20px;
-          margin-top: 20px;
-          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .result {
-          font-weight: bold;
-          margin-bottom: 15px;
-        }
-        .data {
-          word-break: break-all;
-          font-weight: normal;
-          color: #4285f4;
-        }
-        .options-container {
-          background-color: #fff;
-          border: 1px solid #e0e0e0;
-          border-radius: 6px;
-          padding: 15px;
-          margin: 15px 0;
-        }
-        .option-group {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 12px;
-        }
-        .option-group:last-child {
-          margin-bottom: 0;
-        }
-        label {
-          font-weight: 500;
-          color: #333;
-          margin-right: 10px;
-        }
-        .input-field {
-          flex: 1;
-          padding: 8px 12px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 16px;
-          max-width: 200px;
-        }
-        .quantity-field {
-          max-width: 100px;
-          width: 100px;
-        }
-        .checkbox-group {
-          display: flex;
-          align-items: center;
-        }
-        .checkbox-field {
-          width: auto;
-          max-width: none;
-          margin-left: auto;
-          transform: scale(1.5);
-        }
-        select.input-field {
-          background-color: white;
-        }
-        .status {
-          color: #4285f4;
-          padding: 10px;
-          background-color: #e8f0fe;
-          border-radius: 4px;
-          margin: 15px 0;
-        }
-        .error {
-          color: #d23f31;
-          padding: 10px;
-          background-color: #ffebee;
-          border-radius: 4px;
-          margin: 15px 0;
-          font-weight: 500;
-        }
-        .buttons-container {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-        .submit-btn {
-          background-color: #4285f4;
-          color: white;
-          border: none;
-          padding: 12px 20px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 16px;
-          transition: background-color 0.2s;
-        }
-        .submit-btn:hover {
-          background-color: #3367d6;
-        }
-        .scan-btn {
-          background-color: #34a853;
-          color:
