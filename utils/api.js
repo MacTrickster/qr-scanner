@@ -1,5 +1,19 @@
 // URL вашого Google Apps Script
-const scriptUrl = "https://script.google.com/macros/s/AKfycbznzh5d2dszUzCfvs6JzmT3ujEHuLE3AauPsW6EuMp8hOCG9mYRR96gwlFfDy26gN2f8Q/exec";
+const scriptUrl = "https://script.google.com/macros/s/AKfycbzjVWYJOJQmf2VYUVYc7OaxjeMkMdPWV4zUXoqSNtYYh7vgao91ZdGrqnPbcaYbKioweA/exec";
+
+// Функція для безпечного видалення скрипта
+const safeRemoveScript = (script, callbackName) => {
+  try {
+    if (script && script.parentNode) {
+      script.parentNode.removeChild(script);
+    }
+    if (callbackName && window[callbackName]) {
+      delete window[callbackName];
+    }
+  } catch (e) {
+    console.error('Помилка при видаленні скрипта:', e);
+  }
+};
 
 // Функція для отримання інформації про запаси
 export const fetchStockInfo = async (code) => {
@@ -14,15 +28,21 @@ export const fetchStockInfo = async (code) => {
 
   try {
     // JSONP запит для обходу CORS
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
+      // Створюємо унікальне ім'я для колбеку
+      const timestamp = new Date().getTime();
+      const random = Math.floor(Math.random() * 1000000);
+      const callbackName = `jsonpCallback_${timestamp}_${random}`;
+      
+      // Створюємо елемент скрипта
       const script = document.createElement('script');
-      const callbackName = 'jsonpCallback_' + Math.random().toString(36).substr(2, 9);
+      script.type = 'text/javascript';
+      script.async = true;
       
       // Створюємо функцію зворотного виклику з валідацією даних
       window[callbackName] = (data) => {
         try {
-          document.body.removeChild(script);
-          delete window[callbackName];
+          safeRemoveScript(script, callbackName);
           
           console.log("Отримано відповідь від сервера:", data);
           
@@ -71,8 +91,7 @@ export const fetchStockInfo = async (code) => {
       // Обробка помилок
       script.onerror = (error) => {
         console.error("Помилка завантаження скрипта:", error);
-        document.body.removeChild(script);
-        delete window[callbackName];
+        safeRemoveScript(script, callbackName);
         resolve({
           success: false,
           error: "Не вдалося отримати дані про наявність товару"
@@ -83,17 +102,24 @@ export const fetchStockInfo = async (code) => {
       const cleanCode = encodeURIComponent(code.trim());
       const url = `${scriptUrl}?action=getInventory&code=${cleanCode}&callback=${callbackName}`;
       console.log("Відправляємо запит:", url);
+      
+      // Встановлюємо атрибути та додаємо скрипт
       script.src = url;
       
-      // Додаємо скрипт до документа
-      document.body.appendChild(script);
+      // Перевіряємо готовність DOM
+      if (document.body) {
+        document.body.appendChild(script);
+      } else {
+        document.addEventListener('DOMContentLoaded', () => {
+          document.body.appendChild(script);
+        });
+      }
       
       // Встановлюємо таймаут для запиту
       setTimeout(() => {
         if (window[callbackName]) {
           console.error("Таймаут запиту");
-          document.body.removeChild(script);
-          delete window[callbackName];
+          safeRemoveScript(script, callbackName);
           resolve({
             success: false,
             error: "Час очікування запиту вичерпано"
@@ -113,37 +139,56 @@ export const fetchStockInfo = async (code) => {
 // Функція для отримання останніх подій
 export const fetchLastEvents = async () => {
   try {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
+      const timestamp = new Date().getTime();
+      const random = Math.floor(Math.random() * 1000000);
+      const callbackName = `jsonpCallback_${timestamp}_${random}`;
+      
       const script = document.createElement('script');
-      const callbackName = 'jsonpCallback_' + Math.random().toString(36).substr(2, 9);
+      script.type = 'text/javascript';
+      script.async = true;
       
       window[callbackName] = (data) => {
-        document.body.removeChild(script);
-        delete window[callbackName];
+        safeRemoveScript(script, callbackName);
         resolve(data);
       };
       
       script.onerror = () => {
-        document.body.removeChild(script);
-        delete window[callbackName];
-        reject(new Error("Не вдалося отримати останні події"));
+        console.error("Помилка завантаження скрипта для подій");
+        safeRemoveScript(script, callbackName);
+        resolve({
+          success: false,
+          error: "Не вдалося отримати останні події"
+        });
       };
       
       const url = `${scriptUrl}?action=getLastEvents&callback=${callbackName}`;
       script.src = url;
       
-      document.body.appendChild(script);
+      if (document.body) {
+        document.body.appendChild(script);
+      } else {
+        document.addEventListener('DOMContentLoaded', () => {
+          document.body.appendChild(script);
+        });
+      }
       
       setTimeout(() => {
         if (window[callbackName]) {
-          document.body.removeChild(script);
-          delete window[callbackName];
-          reject(new Error("Час очікування запиту вичерпано"));
+          console.error("Таймаут запиту подій");
+          safeRemoveScript(script, callbackName);
+          resolve({
+            success: false,
+            error: "Час очікування запиту вичерпано"
+          });
         }
       }, 10000);
     });
   } catch (error) {
     console.error("Помилка при отриманні останніх подій:", error);
-    throw error;
+    return {
+      success: false,
+      error: "Внутрішня помилка при отриманні останніх подій"
+    };
   }
 };
