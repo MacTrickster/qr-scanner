@@ -492,7 +492,7 @@ export default function QRScanner() {
           productCode={productCode}
           setProductCode={setProductCode}
           isNewItem={isNewItem}
-          setIsNewItem={handleNewItemChange}
+          setIsNewItem={(e) => handleNewItemChange(e)}
           stockInfo={stockInfo}
           station={station}
           action={action}

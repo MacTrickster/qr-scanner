@@ -6,7 +6,7 @@ export default function ProductForm({
   productName,
   setProductName,
   productCode,
-  setProductCode, // додано параметр для встановлення коду
+  setProductCode,
   isNewItem,
   setIsNewItem,
   stockInfo,
@@ -34,12 +34,6 @@ export default function ProductForm({
       setProductCode("XXXXXX"); // Встановлюємо код XXXXXX для нового товару
     }
   }, [isNewItem, setProductCode]);
-
-  // Обробник зміни статусу нового товару
-  const handleNewItemChange = (e) => {
-    const isNew = e.target.checked;
-    setIsNewItem(isNew);
-  };
 
   return (
     <div className="result-container">
@@ -69,14 +63,14 @@ export default function ProductForm({
           />
         </div>
         
-        {/* Галочка "Новий товар" перенесена під код товару */}
+        {/* Галочка "Новий товар" */}
         <div className="option-group checkbox-group">
           <label htmlFor="isNewItem">Новий товар:</label>
           <input
             id="isNewItem"
             type="checkbox"
             checked={isNewItem}
-            onChange={handleNewItemChange}
+            onChange={setIsNewItem}
             className="checkbox-field"
           />
         </div>
