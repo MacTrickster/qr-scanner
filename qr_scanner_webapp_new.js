@@ -373,10 +373,11 @@ export default function QRScanner() {
       // Користувач підтвердив - надсилаємо два запити
       // 1. Прийняття повної кількості
       // 2. Корекція на різницю
+                  sendOrderToGoogleSheets(orderQuantity);
       setTimeout(() => {
         sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
       }, 4000); // Затримка в 3 секунди між запитами
-            sendOrderToGoogleSheets(quantity);
+
       
       return true; // Повертаємо true, оскільки запит(и) вже відправлені
     } else {
