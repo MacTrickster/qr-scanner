@@ -270,27 +270,45 @@ export default function QRScanner() {
 Натисніть "Скасувати" щоб повернутися до форми.`)) {
         
         setIsSubmitting(true);
-        setStatus("Відправка даних...");
+        setStatus("Відправка даних прийняття замовлення...");
         
-        // Надсилаємо один запит з повною кількістю
-        const formData = {
+        // 1. Спочатку відправляємо прийняття замовлення на кількість, яка була замовлена
+        const orderFormData = {
           timestamp: new Date().toISOString(),
           productName: productName,
           productCode: isNewItem ? "" : productCode,
           station: "Склад",
           action: "Прийнято Замовлення",
           team: "",
-          quantity: String(quantity), // Відправляємо повну кількість
+          quantity: String(stockInfo.ordered), // Відправляємо тільки замовлену кількість
           isNewItem: "Ні"
         };
         
-        submitFormData(formData, "hidden-iframe");
+        submitFormData(orderFormData, "hidden-iframe");
         
-        // Після відправки оновлюємо дані
+        // 2. Через невелику затримку відправляємо корекцію на різницю
         setTimeout(() => {
-          refreshStockInfo();
-          setStatus("Дані відправлено");
-          setIsSubmitting(false);
+          setStatus("Відправка даних корекції...");
+          
+          const correctionFormData = {
+            timestamp: new Date().toISOString(),
+            productName: productName,
+            productCode: isNewItem ? "" : productCode,
+            station: "Склад",
+            action: "Корекція",
+            team: "",
+            quantity: String(quantity - stockInfo.ordered), // Різниця між отриманим і замовленим
+            isNewItem: "Ні"
+          };
+          
+          submitFormData(correctionFormData, "hidden-iframe");
+          
+          // 3. Після всіх відправок оновлюємо дані
+          setTimeout(() => {
+            refreshStockInfo();
+            setStatus("Всі дані відправлено");
+            setIsSubmitting(false);
+          }, 3000);
         }, 3000);
         
         return true;
