@@ -23,7 +23,7 @@ export default function QRScanner() {
   const html5QrcodeRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbxGJMtzX8ZWvcZ8PrA_wxgjrvrovubLUjgqzIayvuMjy9BoGUDRaHvgoMxfY0QMaH1WRQ/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbxPvG_dVuA5CO3R8qKj2TwQWPyyq2cKvWZQaZ865pn3Aoym5Nmuv4iG_3yeT3_hlueJGQ/exec";
 
   // Визначення доступних дій для кожної станції
   const actionOptions = {
@@ -88,8 +88,10 @@ export default function QRScanner() {
         setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
         return false;
       } else if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
-        setError(`Недостатньо замовленого товару! Замовлено: ${stockInfo.ordered}, запитано: ${quantity}`);
-        return false;
+        // Для Прийнято Замовлення ми дозволяємо більшу кількість, але покажемо підтвердження
+        // Помилку не встановлюємо, щоб кнопка відправки залишалася активною
+        setError(null);
+        return true;
       }
     }
     // Перевірка для Ремонту
@@ -354,7 +356,126 @@ export default function QRScanner() {
     }
   };
 
-  // Form submission approach that bypasses CORS
+  // Функція для перевірки прийняття замовлення
+  const checkOrderReceived = () => {
+    // Перевірка чи це прийняття замовлення і чи перевищує кількість замовлену
+    if (station === "Склад" && action === "Прийнято Замовлення" && 
+        stockInfo && stockInfo.ordered > 0 && quantity > stockInfo.ordered) {
+      
+      // Показуємо діалогове вікно з питанням
+      if (confirm(`Ви точно отримали більше, ніж замовили? 
+Замовлено: ${stockInfo.ordered}
+Вказано прийнято: ${quantity}
+
+Натисніть "OK" щоб прийняти ${stockInfo.ordered} і додати корекцію на ${quantity - stockInfo.ordered}.
+Натисніть "Скасувати" щоб повернутися до форми.`)) {
+        
+        // Користувач підтвердив - надсилаємо два запити
+        // 1. Прийняття замовленої кількості
+        sendOrderToGoogleSheets(stockInfo.ordered);
+        
+        // 2. Корекція на різницю
+        setTimeout(() => {
+          sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
+        }, 3000); // Затримка в 3 секунди між запитами
+        
+        return true; // Повертаємо true, оскільки запит(и) вже відправлені
+      } else {
+        // Користувач відмовився - повертаємося до форми
+        return false;
+      }
+    }
+    
+    // В інших випадках просто продовжуємо звичайну відправку
+    return null;
+  };
+
+  // Функція для відправки замовленої кількості
+  const sendOrderToGoogleSheets = (orderQuantity) => {
+    setError(null);
+    setStatus("Відправка даних прийняття замовлення...");
+    setIsSubmitting(true);
+    
+    // Create a form element
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = scriptUrl;
+    form.target = "hidden-iframe";
+    
+    // Додаємо необхідні поля
+    const addField = (name, value) => {
+      const field = document.createElement("input");
+      field.type = "hidden";
+      field.name = name;
+      field.value = value;
+      form.appendChild(field);
+    };
+    
+    addField("timestamp", new Date().toISOString());
+    addField("productName", productName);
+    addField("productCode", isNewItem ? "" : productCode);
+    addField("station", station);
+    addField("action", action);
+    addField("team", "");
+    addField("quantity", orderQuantity); // Використовуємо замовлену кількість
+    addField("isNewItem", isNewItem ? "Так" : "Ні");
+    
+    // Append form to document
+    document.body.appendChild(form);
+    
+    // Submit the form
+    form.submit();
+    
+    // Remove form from document
+    document.body.removeChild(form);
+  };
+
+  // Функція для відправки корекції
+  const sendCorrectionToGoogleSheets = (correctionQuantity) => {
+    setStatus("Відправка даних корекції...");
+    
+    // Create a form element
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = scriptUrl;
+    form.target = "hidden-iframe";
+    
+    // Додаємо необхідні поля
+    const addField = (name, value) => {
+      const field = document.createElement("input");
+      field.type = "hidden";
+      field.name = name;
+      field.value = value;
+      form.appendChild(field);
+    };
+    
+    addField("timestamp", new Date().toISOString());
+    addField("productName", productName);
+    addField("productCode", isNewItem ? "" : productCode);
+    addField("station", "Склад");
+    addField("action", "Корекція"); // Спеціальна дія для корекції
+    addField("team", "");
+    addField("quantity", correctionQuantity); // Різниця між прийнятим і замовленим
+    addField("isNewItem", "Ні");
+    
+    // Append form to document
+    document.body.appendChild(form);
+    
+    // Submit the form
+    form.submit();
+    
+    // Remove form from document
+    document.body.removeChild(form);
+    
+    // Set timeout for status update
+    setTimeout(() => {
+      refreshStockInfo();
+      setStatus("Дані відправлено");
+      setIsSubmitting(false);
+    }, 3000);
+  };
+
+  // Основна функція відправки даних
   const sendToGoogleSheets = () => {
     // Для нових товарів не перевіряємо обмеження кількості
     if (!isNewItem) {
@@ -362,6 +483,15 @@ export default function QRScanner() {
       if (!validateQuantityConstraints()) {
         return; // Не продовжуємо, якщо не пройшли перевірку
       }
+      
+      // Перевірка на прийняття замовлення більше ніж замовлено
+      const orderCheckResult = checkOrderReceived();
+      if (orderCheckResult === false) {
+        return; // Користувач відмовився від підтвердження
+      } else if (orderCheckResult === true) {
+        return; // Запити вже відправлені в функції checkOrderReceived
+      }
+      // Якщо orderCheckResult === null, продовжуємо звичайну відправку
     }
     
     setError(null);
@@ -511,9 +641,7 @@ export default function QRScanner() {
           if ((action === "В Ремонт" || action === "Видано") && stockInfo.available < quantity) {
             return true;
           }
-          if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
-            return true;
-          }
+          // Для "Прийнято Замовлення" ми дозволяємо перевищувати кількість, тому тут не перевіряємо
         }
         // Ремонт
         else if (station === "Ремонт") {
