@@ -5,6 +5,7 @@ const scriptUrl = "https://script.google.com/macros/s/AKfycbznzh5d2dszUzCfvs6Jzm
 export const fetchStockInfo = async (code) => {
   // Перевірка валідності коду товару
   if (!code || typeof code !== 'string') {
+    console.error("Невалідний код товару:", code);
     return {
       success: false,
       error: "Невалідний код товару"
@@ -19,34 +20,57 @@ export const fetchStockInfo = async (code) => {
       
       // Створюємо функцію зворотного виклику з валідацією даних
       window[callbackName] = (data) => {
-        document.body.removeChild(script);
-        delete window[callbackName];
-        
-        // Перевіряємо структуру отриманих даних
-        if (!data || typeof data !== 'object') {
+        try {
+          document.body.removeChild(script);
+          delete window[callbackName];
+          
+          console.log("Отримано відповідь від сервера:", data);
+          
+          // Перевіряємо наявність помилки у відповіді
+          if (data && data.error) {
+            console.error("Помилка від сервера:", data.error);
+            resolve({
+              success: false,
+              error: data.error
+            });
+            return;
+          }
+          
+          // Перевіряємо структуру отриманих даних
+          if (!data || typeof data !== 'object') {
+            console.error("Отримано невалідні дані:", data);
+            resolve({
+              success: false,
+              error: "Отримано невалідні дані"
+            });
+            return;
+          }
+
+          // Нормалізуємо дані
+          const response = {
+            success: true,
+            code: code,
+            stock: parseInt(data.stock) || 0,
+            inRepair: parseInt(data.inRepair) || 0,
+            ordered: parseInt(data.ordered) || 0,
+            inProduction: parseInt(data.inProduction) || 0,
+            found: !!data.found
+          };
+
+          console.log("Нормалізовані дані:", response);
+          resolve(response);
+        } catch (error) {
+          console.error("Помилка при обробці відповіді:", error);
           resolve({
             success: false,
-            error: "Отримано невалідні дані"
+            error: "Помилка при обробці відповіді"
           });
-          return;
         }
-
-        // Нормалізуємо дані
-        const response = {
-          success: true,
-          code: code,
-          stock: parseInt(data.stock) || 0,
-          inRepair: parseInt(data.inRepair) || 0,
-          ordered: parseInt(data.ordered) || 0,
-          inProduction: parseInt(data.inProduction) || 0,
-          found: !!data.found
-        };
-
-        resolve(response);
       };
       
       // Обробка помилок
-      script.onerror = () => {
+      script.onerror = (error) => {
+        console.error("Помилка завантаження скрипта:", error);
         document.body.removeChild(script);
         delete window[callbackName];
         resolve({
@@ -58,6 +82,7 @@ export const fetchStockInfo = async (code) => {
       // Створюємо URL запиту з правильним кодуванням
       const cleanCode = encodeURIComponent(code.trim());
       const url = `${scriptUrl}?action=getInventory&code=${cleanCode}&callback=${callbackName}`;
+      console.log("Відправляємо запит:", url);
       script.src = url;
       
       // Додаємо скрипт до документа
@@ -66,6 +91,7 @@ export const fetchStockInfo = async (code) => {
       // Встановлюємо таймаут для запиту
       setTimeout(() => {
         if (window[callbackName]) {
+          console.error("Таймаут запиту");
           document.body.removeChild(script);
           delete window[callbackName];
           resolve({
