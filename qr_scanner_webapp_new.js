@@ -87,12 +87,12 @@ export default function QRScanner() {
       if ((action === "В Ремонт" || action === "Видано") && stockInfo.available < quantity) {
         setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
         return false;
-      } //else if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
-        // Для Прийнято Замовлення ми дозволяємо більшу кількість, але покажемо підтвердження
-        // Помилку не встановлюємо, щоб кнопка відправки залишалася активною
-       // setError(null);
-       // return true;
-    //  }
+      } else if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
+         Для Прийнято Замовлення ми дозволяємо більшу кількість, але покажемо підтвердження
+         Помилку не встановлюємо, щоб кнопка відправки залишалася активною
+        setError(null);
+        return true;
+      }
     }
     // Перевірка для Ремонту
     else if (station === "Ремонт") {
@@ -377,7 +377,7 @@ export default function QRScanner() {
       
       setTimeout(() => {
         sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
-      }, 4000); // Затримка в 3 секунди між запитами
+      }, 6000); // Затримка в 3 секунди між запитами
 
       
       return true; // Повертаємо true, оскільки запит(и) вже відправлені
@@ -425,11 +425,7 @@ export default function QRScanner() {
   document.body.appendChild(form);
   
   // Submit the form
-  if (!document.querySelector('iframe[name="hidden-iframe"]')) {
-  setTimeout(() => form.submit(), 500);
-} else {
   form.submit();
-}
   
   // Remove form from document
   document.body.removeChild(form);
