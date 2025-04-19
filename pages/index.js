@@ -1,9 +1,15 @@
-import QRScanner from "../qr_scanner_webapp_new";
+import dynamic from 'next/dynamic';
+
+// Динамічний імпорт компонента QR сканера для клієнтської сторони
+const QRScannerWithNoSSR = dynamic(
+  () => import('../components/QRScanner'),
+  { ssr: false }
+);
 
 export default function Home() {
   return (
     <div>
-      <QRScanner />
+      <QRScannerWithNoSSR />
     </div>
   );
 }
