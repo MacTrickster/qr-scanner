@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import StockInfoDisplay from "./StockInfoDisplay";
 import FormControls from "./FormControls";
 
@@ -48,6 +48,9 @@ export default function ProductForm({
   scanAgain,
   isSubmitDisabled
 }) {
+  const [showOrderWarning, setShowOrderWarning] = useState(false);
+  const [warningConfirmed, setWarningConfirmed] = useState(false);
+
   // Додаємо ефект для зміни коду при зміні статусу нового товару
   useEffect(() => {
     if (isNewItem) {
@@ -55,10 +58,44 @@ export default function ProductForm({
     }
   }, [isNewItem, setProductCode]);
 
-  const showOrderWarning = !isNewItem && station === "Склад" && 
-    action === "Прийнято Замовлення" && 
-    stockInfo && stockInfo.ordered > 0 && 
-    quantity > stockInfo.ordered;
+  // Ефект для відслідковування зміни кількості
+  useEffect(() => {
+    if (!isNewItem && station === "Склад" && 
+        action === "Прийнято Замовлення" && 
+        stockInfo && stockInfo.ordered > 0 && 
+        quantity > stockInfo.ordered) {
+      setShowOrderWarning(true);
+      setWarningConfirmed(false);
+    } else {
+      setShowOrderWarning(false);
+    }
+  }, [quantity, stockInfo, isNewItem, station, action]);
+
+  const handleOrderConfirm = () => {
+    setWarningConfirmed(true);
+    setShowOrderWarning(false);
+  };
+
+  const handleOrderCancel = () => {
+    handleQuantityChange({ target: { value: stockInfo.ordered } });
+    setShowOrderWarning(false);
+  };
+
+  // Розширена перевірка для відключення кнопки
+  const isButtonDisabled = () => {
+    return isSubmitDisabled() || (showOrderWarning && !warningConfirmed);
+  };
+
+  const handleSubmit = () => {
+    if (warningConfirmed) {
+      // Відправляємо дані з корекцією
+      sendToGoogleSheets(true);
+      setWarningConfirmed(false);
+    } else {
+      // Звичайна відправка
+      sendToGoogleSheets(false);
+    }
+  };
 
   return (
     <div className="result-container">
@@ -177,8 +214,8 @@ export default function ProductForm({
         <OrderWarning
           quantity={quantity}
           ordered={stockInfo.ordered}
-          onConfirm={sendToGoogleSheets}
-          onCancel={() => {}}
+          onConfirm={handleOrderConfirm}
+          onCancel={handleOrderCancel}
         />
       ) : error ? (
         <p className="error">{error}</p>
@@ -189,8 +226,8 @@ export default function ProductForm({
         isRefreshing={isRefreshing}
         isNewItem={isNewItem}
         productCode={productCode}
-        isSubmitDisabled={isSubmitDisabled}
-        sendToGoogleSheets={sendToGoogleSheets}
+        isSubmitDisabled={isButtonDisabled}
+        sendToGoogleSheets={handleSubmit}
         refreshStockInfo={refreshStockInfo}
         scanAgain={scanAgain}
       />

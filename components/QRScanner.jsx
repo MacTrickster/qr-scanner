@@ -327,45 +327,75 @@ export default function QRScanner() {
   };
 
   // Основна функція відправки даних
-  const sendToGoogleSheets = () => {
-    // Для нових товарів не перевіряємо обмеження кількості
-    if (!isNewItem) {
-      // Перевіряємо обмеження переміщень на основі наявності
-      if (!validateQuantityConstraints(station, action, quantity, stockInfo, setError)) {
-        return; // Не продовжуємо, якщо не пройшли перевірку
-      }
-    }
-    
+  const sendToGoogleSheets = (withCorrection = false) => {
     setError(null);
     setStatus("Відправка даних...");
     setIsSubmitting(true);
-    
-    const formData = {
-      timestamp: new Date().toISOString(),
-      productName: productName,
-      productCode: isNewItem ? "" : productCode,
-      station: station,
-      action: action,
-      team: action === "Видано" ? team : "",
-      quantity: String(quantity),
-      isNewItem: isNewItem ? "Так" : "Ні"
-    };
-    
-    submitFormData(formData, "hidden-iframe");
-    
-    // Set timeout for status update
-    setTimeout(() => {
-      // Оновлюємо дані про запаси після відправки
-      if (!isNewItem && productCode !== "XXXXXX") {
-        refreshStockInfo();
-      }
+
+    if (withCorrection && stockInfo && stockInfo.ordered > 0 && quantity > stockInfo.ordered) {
+      // 1. Спочатку відправляємо прийняття замовлення на кількість, яка була замовлена
+      const orderFormData = {
+        timestamp: new Date().toISOString(),
+        productName: productName,
+        productCode: isNewItem ? "" : productCode,
+        station: "Склад",
+        action: "Прийнято Замовлення",
+        team: "",
+        quantity: String(stockInfo.ordered),
+        isNewItem: "Ні"
+      };
       
-      // Оновлюємо останні події
-      refreshLastEvents();
+      submitFormData(orderFormData, "hidden-iframe");
       
-      setStatus("Дані відправлено");
-      setIsSubmitting(false);
-    }, 3000);
+      // 2. Через невелику затримку відправляємо корекцію на різницю
+      setTimeout(() => {
+        setStatus("Відправка даних корекції...");
+        
+        const correctionFormData = {
+          timestamp: new Date().toISOString(),
+          productName: productName,
+          productCode: isNewItem ? "" : productCode,
+          station: "Склад",
+          action: "Корекція",
+          team: "",
+          quantity: String(quantity - stockInfo.ordered),
+          isNewItem: "Ні"
+        };
+        
+        submitFormData(correctionFormData, "hidden-iframe");
+        
+        // 3. Після всіх відправок оновлюємо дані
+        setTimeout(() => {
+          refreshStockInfo();
+          refreshLastEvents();
+          setStatus("Всі дані відправлено");
+          setIsSubmitting(false);
+        }, 3000);
+      }, 3000);
+    } else {
+      // Звичайна відправка даних
+      const formData = {
+        timestamp: new Date().toISOString(),
+        productName: productName,
+        productCode: isNewItem ? "" : productCode,
+        station: station,
+        action: action,
+        team: action === "Видано" ? team : "",
+        quantity: String(quantity),
+        isNewItem: isNewItem ? "Так" : "Ні"
+      };
+      
+      submitFormData(formData, "hidden-iframe");
+      
+      setTimeout(() => {
+        if (!isNewItem && productCode !== "XXXXXX") {
+          refreshStockInfo();
+        }
+        refreshLastEvents();
+        setStatus("Дані відправлено");
+        setIsSubmitting(false);
+      }, 3000);
+    }
   };
   
   const scanAgain = () => {
