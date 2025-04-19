@@ -373,9 +373,11 @@ export default function QRScanner() {
       // Користувач підтвердив - надсилаємо два запити
       // 1. Прийняття повної кількості
       // 2. Корекція на різницю
-                  sendOrderToGoogleSheets(orderQuantity);
+    //sendOrderToGoogleSheets(orderQuantity);
+      
       setTimeout(() => {
-        sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
+        //sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
+        sendOrderToGoogleSheets(orderQuantity);
       }, 4000); // Затримка в 3 секунди між запитами
 
       
