@@ -36,28 +36,27 @@ export default function QRScanner() {
   const html5QrcodeRef = useRef(null);
 
   useEffect(() => {
-    // Initialize scanner only if we haven't gotten camera permission yet
-    if (scanning && !html5QrcodeRef.current && !hasCameraPermission) {
+    // Initialize scanner when scanning is true
+    if (scanning) {
       initializeScanner();
-    } else if (scanning && html5QrcodeRef.current && hasCameraPermission) {
-      // If we already have permission and scanner is initialized, just start scanning
-      startScanner();
     }
     
     // Update available actions based on stock info
     if (station && stockInfo) {
       const availableActions = getAvailableActions(station, stockInfo);
-      // If current action is not available, set the first available action
       if (!availableActions.includes(action) && availableActions.length > 0) {
         setAction(availableActions[0]);
       }
     }
     
-    // Cleanup on unmount
+    // Cleanup on unmount or when scanning becomes false
     return () => {
       if (html5QrcodeRef.current) {
         try {
-          html5QrcodeRef.current.stop().catch(error => {
+          html5QrcodeRef.current.stop().then(() => {
+            html5QrcodeRef.current.clear();
+            html5QrcodeRef.current = null;
+          }).catch(error => {
             console.error("Failed to stop camera:", error);
           });
         } catch (e) {
@@ -65,7 +64,7 @@ export default function QRScanner() {
         }
       }
     };
-  }, [scanning, station, action, stockInfo, hasCameraPermission]);
+  }, [scanning, station, action, stockInfo]);
 
   // При зміні статусу "Новий товар", відновлюємо оригінальні дані
   useEffect(() => {
@@ -100,21 +99,21 @@ export default function QRScanner() {
 
   const initializeScanner = async () => {
     try {
+      if (html5QrcodeRef.current) {
+        await html5QrcodeRef.current.stop();
+        await html5QrcodeRef.current.clear();
+      }
+
       const { Html5Qrcode } = await import("html5-qrcode");
       
-      // Створюємо екземпляр Html5Qrcode
       html5QrcodeRef.current = new Html5Qrcode("reader");
       
-      // Отримуємо список доступних камер
       const devices = await Html5Qrcode.getCameras();
       
       if (devices && devices.length) {
-        // Шукаємо задню камеру (environment)
-        let selectedDeviceId = devices[0].id; // за замовчуванням - перша камера
+        let selectedDeviceId = devices[0].id;
         
-        // Спробуємо знайти задню камеру
         for (const device of devices) {
-          // Задні камери зазвичай мають "environment" в назві або ідентифікаторі
           if (device.label && device.label.toLowerCase().includes("back") || 
               device.label && device.label.toLowerCase().includes("rear") ||
               device.id && device.id.toLowerCase().includes("environment")) {
@@ -123,8 +122,6 @@ export default function QRScanner() {
           }
         }
         
-        // Set camera permission to true after successful initialization
-        setHasCameraPermission(true);
         startScanner(selectedDeviceId);
       } else {
         alert("Камери не знайдено на вашому пристрої!");
@@ -137,7 +134,6 @@ export default function QRScanner() {
   const startScanner = (deviceId = null) => {
     if (!html5QrcodeRef.current) return;
     
-    // Опції камери - намагаємось використовувати задню камеру
     const config = {
       fps: 10,
       qrbox: { width: 250, height: 250 },
@@ -149,23 +145,14 @@ export default function QRScanner() {
     };
     
     const qrCodeSuccessCallback = (decodedText) => {
-      // Використовуємо функцію для обробки даних
       processQrData(decodedText);
-      
       setScanning(false);
-      
-      // Зупиняємо сканер, але не видаляємо його екземпляр
-      html5QrcodeRef.current.stop().catch(error => {
-        console.error("Failed to stop camera:", error);
-      });
     };
     
     const qrCodeErrorCallback = (error) => {
-      // Ігноруємо помилки сканування, вони нормальні коли QR-код не видно
-      // console.error("QR scan error:", error);
+      // Ігноруємо помилки сканування
     };
     
-    // Якщо передано конкретний ідентифікатор пристрою, використовуємо його
     if (deviceId) {
       html5QrcodeRef.current.start(
         { deviceId: { exact: deviceId } },
@@ -175,7 +162,6 @@ export default function QRScanner() {
       ).catch((err) => {
         console.error("Помилка запуску камери:", err);
         
-        // Якщо не вдалося запустити з заданим ID, спробуємо вибрати камеру за замовчуванням
         html5QrcodeRef.current.start(
           { facingMode: "environment" },
           config,
@@ -186,7 +172,6 @@ export default function QRScanner() {
         });
       });
     } else {
-      // Якщо ID не вказано, використовуємо facingMode: "environment" для задньої камери
       html5QrcodeRef.current.start(
         { facingMode: "environment" },
         config,
@@ -428,7 +413,7 @@ export default function QRScanner() {
   };
   
   const scanAgain = () => {
-    setScanning(true);
+    // Reset states
     setStatus("");
     setError(null);
     setQrData("Скануй QR-код...");
@@ -441,6 +426,9 @@ export default function QRScanner() {
     setTeam("Команді A");
     setIsNewItem(false);
     setStockInfo(null);
+    
+    // Set scanning to true last to trigger the useEffect
+    setScanning(true);
   };
 
   // Handle quantity change with validation
