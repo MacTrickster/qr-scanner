@@ -374,7 +374,7 @@ export default function QRScanner() {
       // 1. Прийняття повної кількості
       setTimeout(() => {
       sendOrderToGoogleSheets(quantity);
-      },200);
+      },3000);
       
       // 2. Корекція на різницю
       setTimeout(() => {
