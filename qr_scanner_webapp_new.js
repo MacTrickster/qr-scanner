@@ -87,12 +87,12 @@ export default function QRScanner() {
       if ((action === "В Ремонт" || action === "Видано") && stockInfo.available < quantity) {
         setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
         return false;
-      } else if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
+      } //else if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
         // Для Прийнято Замовлення ми дозволяємо більшу кількість, але покажемо підтвердження
         // Помилку не встановлюємо, щоб кнопка відправки залишалася активною
-        setError(null);
-        return true;
-      }
+       // setError(null);
+       // return true;
+    //  }
     }
     // Перевірка для Ремонту
     else if (station === "Ремонт") {
@@ -372,7 +372,7 @@ export default function QRScanner() {
       
       // Користувач підтвердив - надсилаємо два запити
       // 1. Прийняття повної кількості
-            sendOrderToGoogleSheets(NUMBER(quantity));
+            sendOrderToGoogleSheets(quantity);
       // 2. Корекція на різницю
       
       setTimeout(() => {
