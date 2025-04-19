@@ -1,4 +1,4 @@
-// Оновлені стилі для компонентів
+// Стилі для компонентів, центровані як мобільний додаток
 export const appStyles = `
   * {
     box-sizing: border-box;
@@ -6,34 +6,48 @@ export const appStyles = `
     padding: 0;
   }
 
-  body {
-    background-color: #f8f9fa;
+  html, body {
+    height: 100%;
+    width: 100%;
+    background-color: #f0f2f5;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px 0;
+  }
+
+  #__next {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 0 15px;
   }
 
   .container {
-    max-width: 550px;
+    width: 100%;
+    max-width: 450px;
     margin: 0 auto;
-    padding: 24px;
+    padding: 20px;
     background-color: white;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-    border-radius: 16px;
-    margin-top: 30px;
-    margin-bottom: 30px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    border-radius: 18px;
+    overflow: hidden;
+    position: relative;
   }
 
   h1 {
     color: #1a73e8;
     margin-bottom: 24px;
     text-align: center;
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 700;
     letter-spacing: -0.5px;
     background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    padding-bottom: 8px;
+    padding-bottom: 12px;
     border-bottom: 2px solid #f1f3f4;
   }
 
@@ -58,7 +72,7 @@ export const appStyles = `
     margin-top: 18px;
     font-size: 16px;
     text-align: center;
-    padding: 10px;
+    padding: 12px;
     background-color: #f8f9fa;
     border-radius: 8px;
     border-left: 4px solid #4285f4;
@@ -67,7 +81,7 @@ export const appStyles = `
   .result-container {
     background-color: white;
     border-radius: 12px;
-    padding: 24px;
+    padding: 20px;
     margin-top: 20px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     border: 1px solid #e8eaed;
@@ -361,12 +375,51 @@ export const appStyles = `
     transform: none;
   }
 
-  @media (max-width: 600px) {
+  /* Стилі для імітації мобільного додатку */
+  @media (min-width: 769px) {
+    body:before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(45deg, #4285f4, #34a853);
+      z-index: -1;
+    }
+    
     .container {
-      margin-top: 0;
-      margin-bottom: 0;
+      margin-top: 20px;
+      max-width: 400px;
+      border-radius: 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Імітація "шапки" мобільного додатку */
+    .container:before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 40%;
+      height: 5px;
+      background-color: #e0e0e0;
+      border-radius: 0 0 4px 4px;
+      margin-top: 10px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    body, html {
+      padding: 0;
+    }
+    
+    .container {
+      max-width: 100%;
       border-radius: 0;
       padding: 16px;
+      min-height: 100vh;
     }
     
     .buttons-container {
