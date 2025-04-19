@@ -264,125 +264,66 @@ export default function QRScanner() {
   };
 
   // Функція для перевірки прийняття замовлення
-  const checkOrderReceived = () => {
+  const checkOrderReceived = (onConfirm, onCancel) => {
     // Перевірка чи це прийняття замовлення і чи перевищує кількість замовлену
     if (station === "Склад" && action === "Прийнято Замовлення" && 
         stockInfo && stockInfo.ordered > 0 && quantity > stockInfo.ordered) {
       
-      // Показуємо діалогове вікно з питанням
-      if (confirm(`Ви точно отримали більше, ніж замовили? 
-Замовлено: ${stockInfo.ordered}
-Вказано прийнято: ${quantity}
-
-Натисніть "OK" щоб прийняти ${quantity} і додати корекцію на ${quantity - stockInfo.ordered}.
-Натисніть "Скасувати" щоб повернутися до форми.`)) {
+      // Показуємо діалогове вікно з попередженням
+      setError(null);
+      setIsSubmitting(true);
+      setStatus("Відправка даних прийняття замовлення...");
+      
+      // 1. Спочатку відправляємо прийняття замовлення на кількість, яка була замовлена
+      const orderFormData = {
+        timestamp: new Date().toISOString(),
+        productName: productName,
+        productCode: isNewItem ? "" : productCode,
+        station: "Склад",
+        action: "Прийнято Замовлення",
+        team: "",
+        quantity: String(stockInfo.ordered),
+        isNewItem: "Ні"
+      };
+      
+      submitFormData(orderFormData, "hidden-iframe");
+      
+      // 2. Через невелику затримку відправляємо корекцію на різницю
+      setTimeout(() => {
+        setStatus("Відправка даних корекції...");
         
-        setIsSubmitting(true);
-        setStatus("Відправка даних прийняття замовлення...");
-        
-        // 1. Спочатку відправляємо прийняття замовлення на кількість, яка була замовлена
-        const orderFormData = {
+        const correctionFormData = {
           timestamp: new Date().toISOString(),
           productName: productName,
           productCode: isNewItem ? "" : productCode,
           station: "Склад",
-          action: "Прийнято Замовлення",
+          action: "Корекція",
           team: "",
-          quantity: String(stockInfo.ordered), // Відправляємо тільки замовлену кількість
+          quantity: String(quantity - stockInfo.ordered),
           isNewItem: "Ні"
         };
         
-        submitFormData(orderFormData, "hidden-iframe");
+        submitFormData(correctionFormData, "hidden-iframe");
         
-        // 2. Через невелику затримку відправляємо корекцію на різницю
+        // 3. Після всіх відправок оновлюємо дані
         setTimeout(() => {
-          setStatus("Відправка даних корекції...");
-          
-          const correctionFormData = {
-            timestamp: new Date().toISOString(),
-            productName: productName,
-            productCode: isNewItem ? "" : productCode,
-            station: "Склад",
-            action: "Корекція",
-            team: "",
-            quantity: String(quantity - stockInfo.ordered), // Різниця між отриманим і замовленим
-            isNewItem: "Ні"
-          };
-          
-          submitFormData(correctionFormData, "hidden-iframe");
-          
-          // 3. Після всіх відправок оновлюємо дані
-          setTimeout(() => {
-            refreshStockInfo();
-            refreshLastEvents();
-            setStatus("Всі дані відправлено");
-            setIsSubmitting(false);
-          }, 3000);
+          refreshStockInfo();
+          refreshLastEvents();
+          setStatus("Всі дані відправлено");
+          setIsSubmitting(false);
         }, 3000);
-        
-        return true;
-      } else {
-        return false;
-      }
+      }, 3000);
+      
+      return true;
     }
     
     return null;
   };
 
-  // Функція для відправки замовленої кількості
-  const sendOrderToGoogleSheets = (orderQuantity) => {
+  // Функція для обробки натискання кнопки "Скасувати"
+  const handleCancel = () => {
+    setQuantity(stockInfo.ordered);
     setError(null);
-    setStatus("Відправка даних прийняття замовлення...");
-    setIsSubmitting(true);
-    
-    const formData = {
-      timestamp: new Date().toISOString(),
-      productName: productName,
-      productCode: isNewItem ? "" : productCode,
-      station: station,
-      action: action,
-      team: "",
-      quantity: String(orderQuantity), // Явно конвертуємо в рядок
-      isNewItem: isNewItem ? "Так" : "Ні"
-    };
-    
-    submitFormData(formData, "hidden-iframe");
-    
-    // Set timeout for status update
-    setTimeout(() => {
-      refreshStockInfo();
-      refreshLastEvents();
-      setStatus("Дані відправлено");
-      setIsSubmitting(false);
-    }, 3000);
-  };
-
-  // Функція для відправки корекції
-  const sendCorrectionToGoogleSheets = (correctionQuantity) => {
-    setStatus("Відправка даних корекції...");
-    
-    const formData = {
-      timestamp: new Date().toISOString(),
-      productName: productName,
-      productCode: isNewItem ? "" : productCode,
-      station: "Склад",
-      action: "Корекція", // Спеціальна дія для корекції
-      team: "",
-      quantity: String(correctionQuantity), // Явно конвертуємо в рядок
-      isNewItem: "Ні"
-    };
-    
-    console.log("Відправляємо корекцію з кількістю:", correctionQuantity);
-    
-    submitFormData(formData, "hidden-iframe");
-    
-    // Set timeout for status update
-    setTimeout(() => {
-      refreshStockInfo();
-      refreshLastEvents();
-      setStatus("Дані відправлено");
-      setIsSubmitting(false);
-    }, 3000);
   };
 
   // Основна функція відправки даних
@@ -393,15 +334,6 @@ export default function QRScanner() {
       if (!validateQuantityConstraints(station, action, quantity, stockInfo, setError)) {
         return; // Не продовжуємо, якщо не пройшли перевірку
       }
-      
-      // Перевірка на прийняття замовлення більше ніж замовлено
-      const orderCheckResult = checkOrderReceived();
-      if (orderCheckResult === false) {
-        return; // Користувач відмовився від підтвердження
-      } else if (orderCheckResult === true) {
-        return; // Запити вже відправлені в функції checkOrderReceived
-      }
-      // Якщо orderCheckResult === null, продовжуємо звичайну відправку
     }
     
     setError(null);
@@ -415,7 +347,7 @@ export default function QRScanner() {
       station: station,
       action: action,
       team: action === "Видано" ? team : "",
-      quantity: String(quantity), // Явно конвертуємо в рядок
+      quantity: String(quantity),
       isNewItem: isNewItem ? "Так" : "Ні"
     };
     

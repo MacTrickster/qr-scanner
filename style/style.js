@@ -254,6 +254,55 @@ export const appStyles = `
     animation: slideIn 0.3s ease;
   }
 
+  .warning {
+    color: #e65100;
+    padding: 12px;
+    background-color: #fff3e0;
+    border-radius: 8px;
+    margin: 16px 0;
+    font-weight: 500;
+    text-align: center;
+    font-size: 14px;
+    box-shadow: 0 2px 6px rgba(230, 81, 0, 0.15);
+    border-left: 4px solid #fb8c00;
+    animation: slideIn 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .warning-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: 16px;
+  }
+
+  .warning-button {
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: none;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .warning-button.confirm {
+    background-color: #fb8c00;
+    color: white;
+  }
+
+  .warning-button.cancel {
+    background-color: transparent;
+    color: #e65100;
+    border: 1px solid #fb8c00;
+  }
+
+  .warning-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
   .stock-info {
     margin: 0 0 16px 0;
     padding: 16px;

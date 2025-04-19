@@ -22,9 +22,9 @@ export const validateQuantityConstraints = (station, action, quantity, stockInfo
     if ((action === "В Ремонт" || action === "Видано") && stockInfo.available < quantity) {
       setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
       return false;
-    } else if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
-       //Для Прийнято Замовлення ми дозволяємо більшу кількість, але покажемо підтвердження
-       //Помилку не встановлюємо, щоб кнопка відправки залишалася активною
+    } else if (action === "Прийнято Замовлення") {
+      // Для "Прийнято Замовлення" ми не показуємо помилку,
+      // навіть якщо кількість більша за замовлену
       setError(null);
       return true;
     }

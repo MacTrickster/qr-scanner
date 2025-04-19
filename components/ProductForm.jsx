@@ -2,6 +2,26 @@ import React, { useEffect } from "react";
 import StockInfoDisplay from "./StockInfoDisplay";
 import FormControls from "./FormControls";
 
+const OrderWarning = ({ quantity, ordered, onConfirm, onCancel }) => (
+  <div className="warning">
+    <div>
+      Ви точно отримали більше, ніж замовили?
+      <br />
+      Замовлено: {ordered}
+      <br />
+      Вказано прийнято: {quantity}
+    </div>
+    <div className="warning-actions">
+      <button className="warning-button cancel" onClick={onCancel}>
+        Скасувати
+      </button>
+      <button className="warning-button confirm" onClick={onConfirm}>
+        Підтвердити
+      </button>
+    </div>
+  </div>
+);
+
 export default function ProductForm({
   productName,
   setProductName,
@@ -31,9 +51,14 @@ export default function ProductForm({
   // Додаємо ефект для зміни коду при зміні статусу нового товару
   useEffect(() => {
     if (isNewItem) {
-      setProductCode("XXXXXX"); // Встановлюємо код XXXXXX для нового товару
+      setProductCode("XXXXXX");
     }
   }, [isNewItem, setProductCode]);
+
+  const showOrderWarning = !isNewItem && station === "Склад" && 
+    action === "Прийнято Замовлення" && 
+    stockInfo && stockInfo.ordered > 0 && 
+    quantity > stockInfo.ordered;
 
   return (
     <div className="result-container">
@@ -147,8 +172,17 @@ export default function ProductForm({
       {/* Відображення статусу відправки */}
       {status && <p className="status">{status}</p>}
       
-      {/* Відображення помилок */}
-      {error && <p className="error">{error}</p>}
+      {/* Відображення попередження для прийняття замовлення */}
+      {showOrderWarning ? (
+        <OrderWarning
+          quantity={quantity}
+          ordered={stockInfo.ordered}
+          onConfirm={sendToGoogleSheets}
+          onCancel={() => {}}
+        />
+      ) : error ? (
+        <p className="error">{error}</p>
+      ) : null}
       
       <FormControls
         isSubmitting={isSubmitting}
