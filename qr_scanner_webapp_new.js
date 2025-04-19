@@ -358,78 +358,84 @@ export default function QRScanner() {
 
   // Функція для перевірки прийняття замовлення
   const checkOrderReceived = () => {
-  // Перевірка чи це прийняття замовлення і чи перевищує кількість замовлену
-  if (station === "Склад" && action === "Прийнято Замовлення" && 
-      stockInfo && stockInfo.ordered > 0 && quantity > stockInfo.ordered) {
-    
-    // Показуємо діалогове вікно з питанням
-    if (confirm(`Ви точно отримали більше, ніж замовили? 
+    // Перевірка чи це прийняття замовлення і чи перевищує кількість замовлену
+    if (station === "Склад" && action === "Прийнято Замовлення" && 
+        stockInfo && stockInfo.ordered > 0 && quantity > stockInfo.ordered) {
+      
+      // Показуємо діалогове вікно з питанням
+      if (confirm(`Ви точно отримали більше, ніж замовили? 
 Замовлено: ${stockInfo.ordered}
 Вказано прийнято: ${quantity}
 
 Натисніть "OK" щоб прийняти ${quantity} і додати корекцію на ${quantity - stockInfo.ordered}.
 Натисніть "Скасувати" щоб повернутися до форми.`)) {
-      
-      // Користувач підтвердив - надсилаємо два запити
-      // 1. Прийняття повної кількості
-            sendOrderToGoogleSheets(quantity);
-      // 2. Корекція на різницю
-      
-      setTimeout(() => {
-        sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
-      }, 6000); // Затримка в 3 секунди між запитами
-
-      
-      return true; // Повертаємо true, оскільки запит(и) вже відправлені
-    } else {
-      // Користувач відмовився - повертаємося до форми
-      return false;
+        
+        // Користувач підтвердив - надсилаємо два запити
+        // 1. Прийняття повної кількості
+        sendOrderToGoogleSheets(quantity);
+        // 2. Корекція на різницю
+        
+        setTimeout(() => {
+          sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
+        }, 6000); // Затримка в 6 секунд між запитами
+        
+        return true; // Повертаємо true, оскільки запит(и) вже відправлені
+      } else {
+        // Користувач відмовився - повертаємося до форми
+        return false;
+      }
     }
-  }
-  
-  // В інших випадках просто продовжуємо звичайну відправку
-  return null;
-};
+    
+    // В інших випадках просто продовжуємо звичайну відправку
+    return null;
+  };
 
   // Функція для відправки замовленої кількості
   const sendOrderToGoogleSheets = (orderQuantity) => {
-  setError(null);
-  setStatus("Відправка даних прийняття замовлення...");
-  setIsSubmitting(true);
-  
-  // Create a form element
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = scriptUrl;
-  form.target = "hidden-iframe";
-  
-  // Додаємо необхідні поля
-  const addField = (name, value) => {
-    const field = document.createElement("input");
-    field.type = "hidden";
-    field.name = name;
-    field.value = value;
-    form.appendChild(field);
+    setError(null);
+    setStatus("Відправка даних прийняття замовлення...");
+    setIsSubmitting(true);
+    
+    // Create a form element
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = scriptUrl;
+    form.target = "hidden-iframe";
+    
+    // Додаємо необхідні поля
+    const addField = (name, value) => {
+      const field = document.createElement("input");
+      field.type = "hidden";
+      field.name = name;
+      field.value = value;
+      form.appendChild(field);
+    };
+    
+    addField("timestamp", new Date().toISOString());
+    addField("productName", productName);
+    addField("productCode", isNewItem ? "" : productCode);
+    addField("station", station);
+    addField("action", action);
+    addField("team", "");
+    addField("quantity", orderQuantity); // Використовуємо передану кількість
+    addField("isNewItem", isNewItem ? "Так" : "Ні");
+    
+    // Append form to document
+    document.body.appendChild(form);
+    
+    // Submit the form
+    form.submit();
+    
+    // Remove form from document
+    document.body.removeChild(form);
+    
+    // Set timeout for status update
+    setTimeout(() => {
+      refreshStockInfo();
+      setStatus("Дані відправлено");
+      setIsSubmitting(false);
+    }, 3000);
   };
-  
-  addField("timestamp", new Date().toISOString());
-  addField("productName", productName);
-  addField("productCode", isNewItem ? "" : productCode);
-  addField("station", station);
-  addField("action", action);
-  addField("team", "");
-  addField("quantity", quantity); // Використовуємо повну кількість
-  addField("isNewItem", isNewItem ? "Так" : "Ні");
-  
-  // Append form to document
-  document.body.appendChild(form);
-  
-  // Submit the form
-  form.submit();
-  
-  // Remove form from document
-  document.body.removeChild(form);
-};
 
   // Функція для відправки корекції
   const sendCorrectionToGoogleSheets = (correctionQuantity) => {
@@ -467,7 +473,7 @@ export default function QRScanner() {
     
     // Remove form from document
     document.body.removeChild(form);
-  };
+    
     // Set timeout for status update
     setTimeout(() => {
       refreshStockInfo();
@@ -706,393 +712,3 @@ export default function QRScanner() {
                 onChange={(e) => setProductName(e.target.value)}
                 className="input-field name-field"
                 readOnly={!isNewItem} // Редагування дозволено тільки для нових товарів
-              />
-            </div>
-            
-            {/* Галочка "Новий товар" */}
-            <div className="option-group checkbox-group">
-              <label htmlFor="isNewItem">Новий товар:</label>
-              <input
-                id="isNewItem"
-                type="checkbox"
-                checked={isNewItem}
-                onChange={handleNewItemChange}
-                className="checkbox-field"
-              />
-            </div>
-            
-            {/* Код товару - завжди тільки для читання */}
-            <div className="option-group">
-              <label htmlFor="productCode">Код:</label>
-              <input
-                id="productCode"
-                type="text"
-                value={productCode}
-                className="input-field code-field"
-                readOnly
-              />
-            </div>
-            
-            {/* Відображення інформації про запаси */}
-            {stockInfo && !isNewItem && (
-              <div className="stock-info">
-                <div className={`stock-badge ${stockInfo.available < 5 ? 'low-stock' : 'normal-stock'}`}>
-                  <span className="stock-label">Наявність на складі:</span>
-                  <span className="stock-count">{stockInfo.available}</span>
-                  {stockInfo.available === 0 && <span className="stock-alert"> (Немає на складі!)</span>}
-                  {stockInfo.available > 0 && stockInfo.available < 5 && <span className="stock-warning"> (Мало на складі!)</span>}
-                </div>
-                
-                {/* Додаємо інформацію про кількість в ремонті */}
-                <div className="repair-info">
-                  <span className="stock-label">В ремонті:</span>
-                  <span className="stock-count">{stockInfo.inRepair}</span>
-                </div>
-                
-                {/* Додаємо інформацію про замовлену кількість */}
-                <div className="ordered-info">
-                  <span className="stock-label">Замовлено:</span>
-                  <span className="stock-count">{stockInfo.ordered}</span>
-                </div>
-                
-                {/* Додаємо інформацію про кількість "В роботі" */}
-                <div className="production-info">
-                  <span className="stock-label">В роботі:</span>
-                  <span className="stock-count">{stockInfo.inProduction}</span>
-                </div>
-              </div>
-            )}
-            
-            {/* Станція */}
-            <div className="option-group">
-              <label htmlFor="station">Станція:</label>
-              <select 
-                id="station" 
-                value={station} 
-                onChange={handleStationChange}
-                className="input-field"
-              >
-                <option value="Склад">Склад</option>
-                <option value="Ремонт">Ремонт</option>
-                <option value="Виробництво">Виробництво</option>
-              </select>
-            </div>
-            
-            {/* Дія */}
-            <div className="option-group">
-              <label htmlFor="action">Дія:</label>
-              <select 
-                id="action" 
-                value={action} 
-                onChange={(e) => setAction(e.target.value)}
-                className="input-field"
-                disabled={!station || !actionOptions[station] || actionOptions[station].length === 0}
-              >
-                {station && actionOptions[station]?.map((option, index) => (
-                  <option key={index} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Показувати вибір команди тільки якщо вибрано "Видано" */}
-            {action === "Видано" && (
-              <div className="option-group">
-                <label htmlFor="team">Команда:</label>
-                <select 
-                  id="team" 
-                  value={team} 
-                  onChange={(e) => setTeam(e.target.value)}
-                  className="input-field"
-                >
-                  <option value="Команді A">Команді A</option>
-                  <option value="Команді B">Команді B</option>
-                  <option value="Команді C">Команді C</option>
-                  <option value="Команді D">Команді D</option>
-                </select>
-              </div>
-            )}
-            
-            {/* Кількість */}
-            <div className="option-group">
-              <label htmlFor="quantity">Кількість:</label>
-              <input 
-                id="quantity" 
-                type="number" 
-                min="1" 
-                value={quantity} 
-                onChange={handleQuantityChange}
-                className="input-field quantity-field"
-              />
-            </div>
-          </div>
-          
-          {/* Відображення статусу відправки */}
-          {status && <p className="status">{status}</p>}
-          
-          {/* Відображення помилок */}
-          {error && <p className="error">{error}</p>}
-          
-          <div className="buttons-container">
-            <button 
-              className="submit-btn" 
-              onClick={sendToGoogleSheets}
-              disabled={isSubmitDisabled()}
-            >
-              {isSubmitting ? "Відправка..." : "📤 Відправити дані"}
-            </button>
-            
-            {!isNewItem && (
-              <button 
-                className="refresh-btn" 
-                onClick={() => refreshStockInfo()}
-                disabled={isSubmitting || isRefreshing || (!productCode && !isNewItem) || productCode === "XXXXXX"}
-              >
-                {isRefreshing ? "Оновлення..." : "🔄 Оновити дані"}
-              </button>
-            )}
-            
-            <button 
-              className="scan-btn" 
-              onClick={scanAgain}
-              disabled={isSubmitting || isRefreshing}
-            >
-              📷 Сканувати інший QR-код
-            </button>
-          </div>
-        </div>
-      )}
-      
-      <style jsx>{`
-        .container {
-          max-width: 500px;
-          margin: 0 auto;
-          padding: 20px;
-          text-align: center;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-        }
-        h1 {
-          color: #333;
-          margin-bottom: 20px;
-        }
-        #reader {
-          width: 100%;
-          margin: 0 auto;
-          border-radius: 8px;
-          overflow: hidden;
-          min-height: 300px;
-          position: relative;
-          background-color: #f0f0f0;
-        }
-        #reader video {
-          border-radius: 8px;
-        }
-        .instruction {
-          color: #666;
-          margin-top: 15px;
-          font-size: 14px;
-        }
-        .result-container {
-          background-color: #f9f9f9;
-          border-radius: 8px;
-          padding: 20px;
-          margin-top: 20px;
-          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-        .result {
-          font-weight: bold;
-          margin-bottom: 15px;
-        }
-        .data {
-          word-break: break-all;
-          font-weight: normal;
-          color: #4285f4;
-        }
-        .options-container {
-          background-color: #fff;
-          border: 1px solid #e0e0e0;
-          border-radius: 6px;
-          padding: 15px;
-          margin: 15px 0;
-        }
-        .option-group {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 12px;
-        }
-        .option-group:last-child {
-          margin-bottom: 0;
-        }
-        .name-group {
-          align-items: flex-start;
-        }
-        label {
-          font-weight: 500;
-          color: #333;
-          margin-right: 10px;
-          white-space: nowrap;
-        }
-        .input-field {
-          flex: 1;
-          padding: 8px 12px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 16px;
-        }
-        .name-field {
-          height: auto;
-          min-height: 38px;
-          word-wrap: break-word;
-          text-align: left;
-          overflow-wrap: break-word;
-          white-space: normal;
-        }
-        .code-field {
-          background-color: #f5f5f5;
-          color: #666;
-        }
-        .quantity-field {
-          max-width: 100px;
-          width: 100px;
-        }
-        .checkbox-group {
-          display: flex;
-          align-items: center;
-        }
-        .checkbox-field {
-          width: auto;
-          max-width: none;
-          margin-left: auto;
-          transform: scale(1.5);
-        }
-        select.input-field {
-          background-color: white;
-        }
-        select.input-field:disabled {
-          background-color: #f5f5f5;
-          color: #888;
-        }
-        .status {
-          color: #4285f4;
-          padding: 10px;
-          background-color: #e8f0fe;
-          border-radius: 4px;
-          margin: 15px 0;
-        }
-        .error {
-          color: #d23f31;
-          padding: 10px;
-          background-color: #ffebee;
-          border-radius: 4px;
-          margin: 15px 0;
-          font-weight: 500;
-        }
-        .stock-info {
-          margin: 15px 0;
-          padding: 12px;
-          border-radius: 6px;
-          background-color: #f5f5f5;
-          text-align: left;
-        }
-        .stock-badge, .repair-info, .ordered-info, .production-info {
-          display: block;
-          padding: 5px 10px;
-          border-radius: 4px;
-          font-weight: 500;
-          font-size: 16px;
-          margin-bottom: 8px;
-        }
-        .stock-badge {
-          background-color: #e8f5e9;
-          color: #2e7d32;
-        }
-        .repair-info {
-          background-color: #fff3e0;
-          color: #e65100;
-        }
-        .ordered-info {
-          background-color: #e3f2fd;
-          color: #0d47a1;
-        }
-        .production-info {
-          background-color: #f0f4c3;
-          color: #827717;
-        }
-        .low-stock {
-          background-color: #ffebee;
-          color: #c62828;
-        }
-        .stock-count {
-          margin-left: 5px;
-          font-size: 18px;
-          font-weight: bold;
-        }
-        .stock-alert {
-          color: #d32f2f;
-          font-weight: bold;
-        }
-        .stock-warning {
-          color: #f57c00;
-          font-weight: bold;
-        }
-        .buttons-container {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-        .submit-btn {
-          background-color: #4285f4;
-          color: white;
-          border: none;
-          padding: 12px 20px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 16px;
-          transition: background-color 0.2s;
-        }
-        .submit-btn:hover {
-          background-color: #3367d6;
-        }
-        .refresh-btn {
-          background-color: #fbbc05;
-          color: white;
-          border: none;
-          padding: 12px 20px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 16px;
-          transition: background-color 0.2s;
-        }
-        .refresh-btn:hover {
-          background-color: #f0b400;
-        }
-        .scan-btn, .skip-btn {
-          background-color: #34a853;
-          color: white;
-          border: none;
-          padding: 12px 20px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 16px;
-          transition: background-color 0.2s;
-          margin-top: 15px;
-        }
-        .scan-btn:hover, .skip-btn:hover {
-          background-color: #2d9249;
-        }
-        .skip-btn {
-          background-color: #ea4335;
-        }
-        .skip-btn:hover {
-          background-color: #d73027;
-        }
-        .submit-btn:disabled, .refresh-btn:disabled, .scan-btn:disabled, .skip-btn:disabled {
-          background-color: #a0a0a0;
-          cursor: not-allowed;
-        }
-      `}</style>
-    </div>
-  );
-}
