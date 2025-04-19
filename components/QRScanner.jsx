@@ -222,23 +222,24 @@ export default function QRScanner() {
       setStatus("Отримання даних про наявність...");
       const stockData = await fetchStockInfo(productCodeToUse);
       
-      if (stockData && stockData.success) {
+      if (stockData.success) {
         setStockInfo({
-          available: stockData.stock,            // Наявна кількість на складі (колонка B)
-          inRepair: stockData.inRepair || 0,     // Кількість в ремонті (колонка C)
-          ordered: stockData.ordered || 0,       // Замовлено (колонка D)
-          inProduction: stockData.inProduction || 0, // В роботі (колонка E)
+          available: stockData.stock,
+          inRepair: stockData.inRepair,
+          ordered: stockData.ordered,
+          inProduction: stockData.inProduction,
           code: stockData.code,
           found: stockData.found
         });
         setStatus("");
+        setError(null);
         
         // Перевіряємо обмеження кількості з новими даними
         setTimeout(() => validateQuantityConstraints(station, action, quantity, stockInfo, setError), 100);
       } else {
         setStockInfo(null);
         setStatus("");
-        setError("Не вдалося отримати дані про наявність товару");
+        setError(stockData.error || "Не вдалося отримати дані про наявність товару");
       }
     } catch (error) {
       console.error("Помилка при отриманні даних про запаси:", error);
