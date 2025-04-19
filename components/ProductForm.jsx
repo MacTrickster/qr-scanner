@@ -1,7 +1,6 @@
 import React from "react";
 import StockInfoDisplay from "./StockInfoDisplay";
 import FormControls from "./FormControls";
-import { actionOptions } from "../utils/stockUtils";
 
 export default function ProductForm({
   productName,
@@ -11,19 +10,18 @@ export default function ProductForm({
   setIsNewItem,
   stockInfo,
   station,
-  setStation,
   action,
   setAction,
   quantity,
-  setQuantity,
   team,
   setTeam,
   status,
   error,
-  isSubmitting,
-  isRefreshing,
   handleStationChange,
   handleQuantityChange,
+  actionOptions,
+  isSubmitting,
+  isRefreshing,
   refreshStockInfo,
   sendToGoogleSheets,
   scanAgain,
@@ -52,7 +50,7 @@ export default function ProductForm({
             id="isNewItem"
             type="checkbox"
             checked={isNewItem}
-            onChange={(e) => setIsNewItem(e.target.checked)}
+            onChange={setIsNewItem}
             className="checkbox-field"
           />
         </div>
