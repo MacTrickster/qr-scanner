@@ -13,6 +13,7 @@ export default function QRScanner() {
   const [qrData, setQrData] = useState("Скануй QR-код...");
   const [productName, setProductName] = useState("");
   const [originalProductName, setOriginalProductName] = useState(""); // Зберігаємо оригінальну назву з QR коду
+  const [originalProductCode, setOriginalProductCode] = useState(""); // Зберігаємо оригінальний код з QR коду
   const [productCode, setProductCode] = useState("");
   const [scanning, setScanning] = useState(true);
   const [status, setStatus] = useState("");
@@ -63,12 +64,13 @@ export default function QRScanner() {
     };
   }, [scanning, station, action]);
 
-  // При зміні статусу "Новий товар", відновлюємо оригінальну назву або дозволяємо редагування
+  // При зміні статусу "Новий товар", відновлюємо оригінальні дані
   useEffect(() => {
-    if (!isNewItem && originalProductName) {
+    if (!isNewItem) {
       setProductName(originalProductName);
+      setProductCode(originalProductCode);
     }
-  }, [isNewItem, originalProductName]);
+  }, [isNewItem, originalProductName, originalProductCode]);
 
   // Перевіряємо обмеження кількості при зміні кількості, станції або дії
   useEffect(() => {
@@ -200,6 +202,7 @@ export default function QRScanner() {
     setProductName(parsedData.productName);
     setOriginalProductName(parsedData.productName); // Зберігаємо оригінальну назву
     setProductCode(parsedData.productCode);
+    setOriginalProductCode(parsedData.productCode); // Зберігаємо оригінальний код
     
     // Якщо є код товару, спробуйте отримати інформацію про запаси
     if (parsedData.productCode) {
@@ -266,23 +269,55 @@ export default function QRScanner() {
 Натисніть "OK" щоб прийняти ${quantity} і додати корекцію на ${quantity - stockInfo.ordered}.
 Натисніть "Скасувати" щоб повернутися до форми.`)) {
         
-        // Користувач підтвердив - надсилаємо два запити
+        // Відправляємо запити послідовно
+        setIsSubmitting(true);
+        setStatus("Відправка даних прийняття замовлення...");
+        
         // 1. Прийняття повної кількості
-        sendOrderToGoogleSheets(quantity);
-        // 2. Корекція на різницю
+        const formData = {
+          timestamp: new Date().toISOString(),
+          productName: productName,
+          productCode: isNewItem ? "" : productCode,
+          station: station,
+          action: "Прийнято Замовлення",
+          team: "",
+          quantity: String(quantity),
+          isNewItem: "Ні"
+        };
         
+        submitFormData(formData, "hidden-iframe");
+        
+        // 2. Після затримки відправляємо корекцію
         setTimeout(() => {
-          sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
-        }, 6000); // Затримка в 6 секунд між запитами
+          setStatus("Відправка даних корекції...");
+          
+          const correctionFormData = {
+            timestamp: new Date().toISOString(),
+            productName: productName,
+            productCode: isNewItem ? "" : productCode,
+            station: "Склад",
+            action: "Корекція",
+            team: "",
+            quantity: String(quantity - stockInfo.ordered),
+            isNewItem: "Ні"
+          };
+          
+          submitFormData(correctionFormData, "hidden-iframe");
+          
+          // Після всіх відправок
+          setTimeout(() => {
+            refreshStockInfo();
+            setStatus("Всі дані відправлено");
+            setIsSubmitting(false);
+          }, 3000);
+        }, 6000);
         
-        return true; // Повертаємо true, оскільки запит(и) вже відправлені
+        return true;
       } else {
-        // Користувач відмовився - повертаємося до форми
         return false;
       }
     }
     
-    // В інших випадках просто продовжуємо звичайну відправку
     return null;
   };
 
