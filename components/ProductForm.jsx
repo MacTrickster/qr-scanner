@@ -1,4 +1,18 @@
 import React from "react";
+import { 
+  TextField, 
+  Checkbox, 
+  FormControlLabel, 
+  MenuItem, 
+  Select, 
+  FormControl, 
+  InputLabel, 
+  Card, 
+  CardContent, 
+  Typography, 
+  Box, 
+  Divider
+} from '@mui/material';
 import StockInfoDisplay from "./StockInfoDisplay";
 import FormControls from "./FormControls";
 
@@ -28,131 +42,147 @@ export default function ProductForm({
   isSubmitDisabled
 }) {
   return (
-    <div className="result-container">
-      <div className="options-container">
-        {/* Назва товару */}
-        <div className="option-group name-group">
-          <label htmlFor="productName">Назва:</label>
-          <input
-            id="productName"
-            type="text"
+    <Card elevation={3} sx={{ borderRadius: 2, mt: 3 }}>
+      <CardContent>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" component="div" sx={{ mb: 2 }}>
+            Інформація про товар
+          </Typography>
+          
+          <TextField
+            label="Назва товару"
+            variant="outlined"
+            fullWidth
+            margin="normal"
             value={productName}
             onChange={(e) => setProductName(e.target.value)}
-            className="input-field name-field"
-            readOnly={!isNewItem}
+            InputProps={{ readOnly: !isNewItem }}
           />
-        </div>
-        
-        {/* Галочка "Новий товар" */}
-        <div className="option-group checkbox-group">
-          <label htmlFor="isNewItem">Новий товар:</label>
-          <input
-            id="isNewItem"
-            type="checkbox"
-            checked={isNewItem}
-            onChange={setIsNewItem}
-            className="checkbox-field"
+          
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={isNewItem}
+                onChange={setIsNewItem}
+                color="primary"
+              />
+            }
+            label="Новий товар"
           />
-        </div>
-        
-        {/* Код товару */}
-        <div className="option-group">
-          <label htmlFor="productCode">Код:</label>
-          <input
-            id="productCode"
-            type="text"
+          
+          <TextField
+            label="Код товару"
+            variant="outlined"
+            fullWidth
+            margin="normal"
             value={productCode}
-            className="input-field code-field"
-            readOnly
+            InputProps={{ readOnly: true }}
+            sx={{ mb: 2 }}
           />
-        </div>
+        </Box>
         
-        {/* Відображення інформації про запаси */}
         {stockInfo && !isNewItem && (
           <StockInfoDisplay stockInfo={stockInfo} />
         )}
         
-        {/* Станція */}
-        <div className="option-group">
-          <label htmlFor="station">Станція:</label>
-          <select 
-            id="station" 
-            value={station} 
-            onChange={handleStationChange}
-            className="input-field"
-          >
-            <option value="Склад">Склад</option>
-            <option value="Ремонт">Ремонт</option>
-            <option value="Виробництво">Виробництво</option>
-          </select>
-        </div>
+        <Divider sx={{ my: 3 }} />
         
-        {/* Дія */}
-        <div className="option-group">
-          <label htmlFor="action">Дія:</label>
-          <select 
-            id="action" 
-            value={action} 
+        <Typography variant="h6" component="div" sx={{ mb: 2 }}>
+          Параметри операції
+        </Typography>
+        
+        <FormControl fullWidth margin="normal">
+          <InputLabel id="station-label">Станція</InputLabel>
+          <Select
+            labelId="station-label"
+            value={station}
+            label="Станція"
+            onChange={handleStationChange}
+          >
+            <MenuItem value="Склад">Склад</MenuItem>
+            <MenuItem value="Ремонт">Ремонт</MenuItem>
+            <MenuItem value="Виробництво">Виробництво</MenuItem>
+          </Select>
+        </FormControl>
+        
+        <FormControl fullWidth margin="normal">
+          <InputLabel id="action-label">Дія</InputLabel>
+          <Select
+            labelId="action-label"
+            value={action}
+            label="Дія"
             onChange={(e) => setAction(e.target.value)}
-            className="input-field"
             disabled={!station || !actionOptions[station] || actionOptions[station].length === 0}
           >
             {station && actionOptions[station]?.map((option, index) => (
-              <option key={index} value={option}>
-                {option}
-              </option>
+              <MenuItem key={index} value={option}>{option}</MenuItem>
             ))}
-          </select>
-        </div>
+          </Select>
+        </FormControl>
         
-        {/* Показувати вибір команди тільки якщо вибрано "Видано" */}
         {action === "Видано" && (
-          <div className="option-group">
-            <label htmlFor="team">Команда:</label>
-            <select 
-              id="team" 
-              value={team} 
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="team-label">Команда</InputLabel>
+            <Select
+              labelId="team-label"
+              value={team}
+              label="Команда"
               onChange={(e) => setTeam(e.target.value)}
-              className="input-field"
             >
-              <option value="Команді A">Команді A</option>
-              <option value="Команді B">Команді B</option>
-              <option value="Команді C">Команді C</option>
-              <option value="Команді D">Команді D</option>
-            </select>
-          </div>
+              <MenuItem value="Команді A">Команді A</MenuItem>
+              <MenuItem value="Команді B">Команді B</MenuItem>
+              <MenuItem value="Команді C">Команді C</MenuItem>
+              <MenuItem value="Команді D">Команді D</MenuItem>
+            </Select>
+          </FormControl>
         )}
         
-        {/* Кількість */}
-        <div className="option-group">
-          <label htmlFor="quantity">Кількість:</label>
-          <input 
-            id="quantity" 
-            type="number" 
-            min="1" 
-            value={quantity} 
-            onChange={handleQuantityChange}
-            className="input-field quantity-field"
-          />
-        </div>
-      </div>
-      
-      {/* Відображення статусу відправки */}
-      {status && <p className="status">{status}</p>}
-      
-      {/* Відображення помилок */}
-      {error && <p className="error">{error}</p>}
-      
-      <FormControls
-        isSubmitting={isSubmitting}
-        isRefreshing={isRefreshing}
-        isNewItem={isNewItem}
-        productCode={productCode}
-        isSubmitDisabled={isSubmitDisabled}
-        sendToGoogleSheets={sendToGoogleSheets}
-        refreshStockInfo={refreshStockInfo}
-        scanAgain={scanAgain}
-      />
-    </div>
+        <TextField
+          label="Кількість"
+          type="number"
+          variant="outlined"
+          margin="normal"
+          value={quantity}
+          onChange={handleQuantityChange}
+          InputProps={{ inputProps: { min: 1 } }}
+          sx={{ width: '50%' }}
+        />
+        
+        {status && (
+          <Box sx={{ 
+            p: 2, 
+            mt: 2, 
+            bgcolor: 'info.light', 
+            color: 'info.contrastText',
+            borderRadius: 1
+          }}>
+            <Typography>{status}</Typography>
+          </Box>
+        )}
+        
+        {error && (
+          <Box sx={{ 
+            p: 2, 
+            mt: 2, 
+            bgcolor: 'error.light', 
+            color: 'error.contrastText',
+            borderRadius: 1
+          }}>
+            <Typography>{error}</Typography>
+          </Box>
+        )}
+        
+        <FormControls
+          isSubmitting={isSubmitting}
+          isRefreshing={isRefreshing}
+          isNewItem={isNewItem}
+          productCode={productCode}
+          isSubmitDisabled={isSubmitDisabled}
+          sendToGoogleSheets={sendToGoogleSheets}
+          refreshStockInfo={refreshStockInfo}
+          scanAgain={scanAgain}
+        />
+      </CardContent>
+    </Card>
   );
 }

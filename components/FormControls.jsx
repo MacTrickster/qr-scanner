@@ -1,4 +1,8 @@
 import React from "react";
+import { Button, Stack } from "@mui/material";
+import SendIcon from '@mui/icons-material/Send';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 
 export default function FormControls({
   isSubmitting,
@@ -11,32 +15,41 @@ export default function FormControls({
   scanAgain
 }) {
   return (
-    <div className="buttons-container">
-      <button 
-        className="submit-btn" 
+    <Stack spacing={2} sx={{ mt: 3 }}>
+      <Button
+        variant="contained"
+        color="primary"
+        startIcon={<SendIcon />}
         onClick={sendToGoogleSheets}
         disabled={isSubmitDisabled()}
+        fullWidth
       >
-        {isSubmitting ? "⏳ Відправка..." : "📤 Відправити дані"}
-      </button>
+        {isSubmitting ? "Відправка..." : "Відправити дані"}
+      </Button>
       
       {!isNewItem && (
-        <button 
-          className="refresh-btn" 
+        <Button
+          variant="contained"
+          color="warning"
+          startIcon={<RefreshIcon />}
           onClick={() => refreshStockInfo()}
           disabled={isSubmitting || isRefreshing || (!productCode && !isNewItem) || productCode === "XXXXXX"}
+          fullWidth
         >
-          {isRefreshing ? "⏳ Оновлення..." : "🔄 Оновити дані"}
-        </button>
+          {isRefreshing ? "Оновлення..." : "Оновити дані"}
+        </Button>
       )}
       
-      <button 
-        className="scan-btn" 
+      <Button
+        variant="contained"
+        color="success"
+        startIcon={<QrCodeScannerIcon />}
         onClick={scanAgain}
         disabled={isSubmitting || isRefreshing}
+        fullWidth
       >
-        📷 Сканувати інший QR-код
-      </button>
-    </div>
+        Сканувати інший QR-код
+      </Button>
+    </Stack>
   );
 }
