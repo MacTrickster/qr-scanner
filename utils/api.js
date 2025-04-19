@@ -44,32 +44,3 @@ export const fetchStockInfo = async (code) => {
     throw error;
   }
 };
-
-// Функція для відправки даних через форму
-export const submitFormData = (formData, targetFrame) => {
-  // Create a form element
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = scriptUrl;
-  form.target = targetFrame || "hidden-iframe";
-  
-  // Додаємо поля з formData
-  Object.entries(formData).forEach(([name, value]) => {
-    const field = document.createElement("input");
-    field.type = "hidden";
-    field.name = name;
-    field.value = String(value); // Переконуємось, що значення - рядок
-    form.appendChild(field);
-  });
-  
-  // Append form to document
-  document.body.appendChild(form);
-  
-  // Submit the form
-  form.submit();
-  
-  // Remove form from document
-  document.body.removeChild(form);
-  
-  return true;
-};
