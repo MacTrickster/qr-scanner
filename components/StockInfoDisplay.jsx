@@ -10,17 +10,19 @@ export default function StockInfoDisplay({ stockInfo }) {
         {stockInfo.available > 0 && stockInfo.available < 5 && <span className="stock-warning"> (Мало на складі!)</span>}
       </div>
       
-      {/* Додаємо інформацію про кількість в ремонті */}
+      {/* Інформація про кількість в ремонті */}
       <div className="repair-info">
         <span className="stock-label">В ремонті:</span>
         <span className="stock-count">{stockInfo.inRepair}</span>
       </div>
       
-      {/* Додаємо інформацію про замовлену кількість */}
+      {/* Інформація про замовлену кількість */}
       <div className="ordered-info">
         <span className="stock-label">Замовлено:</span>
         <span className="stock-count">{stockInfo.ordered}</span>
       </div>
+      
+      {/* Не відображаємо кількість "В роботі" згідно з вимогами */}
     </div>
   );
 }
