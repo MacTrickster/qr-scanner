@@ -372,7 +372,9 @@ export default function QRScanner() {
       
       // Користувач підтвердив - надсилаємо два запити
       // 1. Прийняття повної кількості
+      setTimeout(() => {
       sendOrderToGoogleSheets(quantity);
+      },200);
       
       // 2. Корекція на різницю
       setTimeout(() => {
