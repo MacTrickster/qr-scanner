@@ -358,77 +358,77 @@ export default function QRScanner() {
 
   // Функція для перевірки прийняття замовлення
   const checkOrderReceived = () => {
-    // Перевірка чи це прийняття замовлення і чи перевищує кількість замовлену
-    if (station === "Склад" && action === "Прийнято Замовлення" && 
-        stockInfo && stockInfo.ordered > 0 && quantity > stockInfo.ordered) {
-      
-      // Показуємо діалогове вікно з питанням
-      if (confirm(`Ви точно отримали більше, ніж замовили? 
+  // Перевірка чи це прийняття замовлення і чи перевищує кількість замовлену
+  if (station === "Склад" && action === "Прийнято Замовлення" && 
+      stockInfo && stockInfo.ordered > 0 && quantity > stockInfo.ordered) {
+    
+    // Показуємо діалогове вікно з питанням
+    if (confirm(`Ви точно отримали більше, ніж замовили? 
 Замовлено: ${stockInfo.ordered}
 Вказано прийнято: ${quantity}
 
-Натисніть "OK" щоб прийняти ${stockInfo.ordered} і додати корекцію на ${quantity - stockInfo.ordered}.
+Натисніть "OK" щоб прийняти ${quantity} і додати корекцію на ${quantity - stockInfo.ordered}.
 Натисніть "Скасувати" щоб повернутися до форми.`)) {
-        
-        // Користувач підтвердив - надсилаємо два запити
-        // 1. Прийняття замовленої кількості
-        sendOrderToGoogleSheets(stockInfo.ordered);
-        
-        // 2. Корекція на різницю
-        setTimeout(() => {
-          sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
-        }, 3000); // Затримка в 3 секунди між запитами
-        
-        return true; // Повертаємо true, оскільки запит(и) вже відправлені
-      } else {
-        // Користувач відмовився - повертаємося до форми
-        return false;
-      }
+      
+      // Користувач підтвердив - надсилаємо два запити
+      // 1. Прийняття повної кількості
+      sendOrderToGoogleSheets(quantity);
+      
+      // 2. Корекція на різницю
+      setTimeout(() => {
+        sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
+      }, 3000); // Затримка в 3 секунди між запитами
+      
+      return true; // Повертаємо true, оскільки запит(и) вже відправлені
+    } else {
+      // Користувач відмовився - повертаємося до форми
+      return false;
     }
-    
-    // В інших випадках просто продовжуємо звичайну відправку
-    return null;
-  };
+  }
+  
+  // В інших випадках просто продовжуємо звичайну відправку
+  return null;
+};
 
   // Функція для відправки замовленої кількості
   const sendOrderToGoogleSheets = (orderQuantity) => {
-    setError(null);
-    setStatus("Відправка даних прийняття замовлення...");
-    setIsSubmitting(true);
-    
-    // Create a form element
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = scriptUrl;
-    form.target = "hidden-iframe";
-    
-    // Додаємо необхідні поля
-    const addField = (name, value) => {
-      const field = document.createElement("input");
-      field.type = "hidden";
-      field.name = name;
-      field.value = value;
-      form.appendChild(field);
-    };
-    
-    addField("timestamp", new Date().toISOString());
-    addField("productName", productName);
-    addField("productCode", isNewItem ? "" : productCode);
-    addField("station", station);
-    addField("action", action);
-    addField("team", "");
-    addField("quantity", orderQuantity); // Використовуємо замовлену кількість
-    addField("isNewItem", isNewItem ? "Так" : "Ні");
-    
-    // Append form to document
-    document.body.appendChild(form);
-    
-    // Submit the form
-    form.submit();
-    
-    // Remove form from document
-    document.body.removeChild(form);
+  setError(null);
+  setStatus("Відправка даних прийняття замовлення...");
+  setIsSubmitting(true);
+  
+  // Create a form element
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = scriptUrl;
+  form.target = "hidden-iframe";
+  
+  // Додаємо необхідні поля
+  const addField = (name, value) => {
+    const field = document.createElement("input");
+    field.type = "hidden";
+    field.name = name;
+    field.value = value;
+    form.appendChild(field);
   };
+  
+  addField("timestamp", new Date().toISOString());
+  addField("productName", productName);
+  addField("productCode", isNewItem ? "" : productCode);
+  addField("station", station);
+  addField("action", action);
+  addField("team", "");
+  addField("quantity", quantity); // Використовуємо повну кількість
+  addField("isNewItem", isNewItem ? "Так" : "Ні");
+  
+  // Append form to document
+  document.body.appendChild(form);
+  
+  // Submit the form
+  form.submit();
+  
+  // Remove form from document
+  document.body.removeChild(form);
+};
 
   // Функція для відправки корекції
   const sendCorrectionToGoogleSheets = (correctionQuantity) => {
