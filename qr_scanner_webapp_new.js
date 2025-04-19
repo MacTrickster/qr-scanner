@@ -467,7 +467,7 @@ export default function QRScanner() {
     
     // Remove form from document
     document.body.removeChild(form);
-    
+  };
     // Set timeout for status update
     setTimeout(() => {
       refreshStockInfo();
