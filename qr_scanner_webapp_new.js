@@ -373,7 +373,10 @@ export default function QRScanner() {
       // Користувач підтвердив - надсилаємо два запити
       // 1. Прийняття повної кількості
       // 2. Корекція на різницю
-      sendOrderToGoogleSheets(quantity);
+      const safeQuantity = Number(quantity);
+      addField("quantity", isNaN(safeQuantity) ? "0" : String(safeQuantity));
+
+      sendOrderToGoogleSheets(safeQuantity);
       
       setTimeout(() => {
         sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
