@@ -373,11 +373,10 @@ export default function QRScanner() {
       // Користувач підтвердив - надсилаємо два запити
       // 1. Прийняття повної кількості
       // 2. Корекція на різницю
-    //sendOrderToGoogleSheets(orderQuantity);
+      sendOrderToGoogleSheets(quantity);
       
       setTimeout(() => {
-        //sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
-        sendOrderToGoogleSheets(orderQuantity);
+        sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
       }, 4000); // Затримка в 3 секунди між запитами
 
       
@@ -426,7 +425,11 @@ export default function QRScanner() {
   document.body.appendChild(form);
   
   // Submit the form
+  if (!document.querySelector('iframe[name="hidden-iframe"]')) {
+  setTimeout(() => form.submit(), 500);
+} else {
   form.submit();
+}
   
   // Remove form from document
   document.body.removeChild(form);
