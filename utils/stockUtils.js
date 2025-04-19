@@ -1,9 +1,26 @@
-// Визначення доступних дій для кожної станції
-export const actionOptions = {
+// Base action options
+const baseActionOptions = {
   "Склад": ["Прийнято", "В Ремонт", "Видано", "Замовлено", "Прийнято Замовлення"],
   "Ремонт": ["Брак", "Склад"],
   "Виробництво": ["В Ремонт", "Залишки"]
 };
+
+// Function to get available actions based on stock info
+export const getAvailableActions = (station, stockInfo) => {
+  if (!stockInfo || !baseActionOptions[station]) {
+    return baseActionOptions[station] || [];
+  }
+
+  // For Склад station, remove "Прийнято Замовлення" if ordered is 0
+  if (station === "Склад" && (!stockInfo.ordered || stockInfo.ordered === 0)) {
+    return baseActionOptions[station].filter(action => action !== "Прийнято Замовлення");
+  }
+
+  return baseActionOptions[station];
+};
+
+// Визначення доступних дій для кожної станції
+export const actionOptions = baseActionOptions;
 
 // Функція для перевірки обмежень кількості
 export const validateQuantityConstraints = (station, action, quantity, stockInfo, setError) => {

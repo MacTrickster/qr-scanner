@@ -1,4 +1,6 @@
 import React from "react";
+import Button from '@mui/material/Button';
+import SkipNextIcon from '@mui/icons-material/SkipNext';
 
 export default function ScannerView({ scannerRef, skipScanner }) {
   return (
@@ -6,13 +8,16 @@ export default function ScannerView({ scannerRef, skipScanner }) {
       <div id="reader" ref={scannerRef}></div>
       <p className="instruction">📱 Наведіть камеру на QR-код для сканування</p>
       
-      {/* Кнопка для пропуску сканера */}
-      <button 
-        className="skip-btn" 
+      <Button 
+        variant="contained"
+        color="primary"
+        startIcon={<SkipNextIcon />}
         onClick={skipScanner}
+        fullWidth
+        sx={{ mt: 2 }}
       >
-        ⏭️ Пропустити сканер
-      </button>
+        Пропустити сканер
+      </Button>
     </div>
   );
 }

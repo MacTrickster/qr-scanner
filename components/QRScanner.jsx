@@ -3,17 +3,20 @@ import ScannerView from "./ScannerView";
 import ProductForm from "./ProductForm";
 import { fetchStockInfo } from "../utils/api";
 import { parseQrData } from "../utils/qrParser";
-import { actionOptions, validateQuantityConstraints } from "../utils/stockUtils";
+import { actionOptions, validateQuantityConstraints, getAvailableActions } from "../utils/stockUtils";
 import { submitFormData } from "../utils/formUtils";
 
 const scriptUrl = "https://script.google.com/macros/s/AKfycbxPvG_dVuA5CO3R8qKj2TwQWPyyq2cKvWZQaZ865pn3Aoym5Nmuv4iG_3yeT3_hlueJGQ/exec";
 
 export default function QRScanner() {
-  // Стани
+  // Add new state for camera permission
+  const [hasCameraPermission, setHasCameraPermission] = useState(false);
+  
+  // Existing states...
   const [qrData, setQrData] = useState("Скануй QR-код...");
   const [productName, setProductName] = useState("");
-  const [originalProductName, setOriginalProductName] = useState(""); // Зберігаємо оригінальну назву з QR коду
-  const [originalProductCode, setOriginalProductCode] = useState(""); // Зберігаємо оригінальний код з QR коду
+  const [originalProductName, setOriginalProductName] = useState("");
+  const [originalProductCode, setOriginalProductCode] = useState("");
   const [productCode, setProductCode] = useState("");
   const [scanning, setScanning] = useState(true);
   const [status, setStatus] = useState("");
@@ -33,24 +36,24 @@ export default function QRScanner() {
   const html5QrcodeRef = useRef(null);
 
   useEffect(() => {
-    // Ініціалізуємо сканер при першому завантаженні компонента
-    if (scanning && !html5QrcodeRef.current) {
+    // Initialize scanner only if we haven't gotten camera permission yet
+    if (scanning && !html5QrcodeRef.current && !hasCameraPermission) {
       initializeScanner();
-    } else if (scanning && html5QrcodeRef.current) {
-      // Якщо сканер вже був ініціалізований, просто запускаємо його знову
+    } else if (scanning && html5QrcodeRef.current && hasCameraPermission) {
+      // If we already have permission and scanner is initialized, just start scanning
       startScanner();
     }
     
-    // Встановлюємо доступні опції для "Дія" при зміні "Станція"
-    if (station && actionOptions[station]) {
-      // Перевіряємо, чи поточна дія доступна для вибраної станції
-      const isCurrentActionAvailable = actionOptions[station].includes(action);
-      if (!isCurrentActionAvailable && actionOptions[station].length > 0) {
-        setAction(actionOptions[station][0]); // Встановлюємо першу доступну дію
+    // Update available actions based on stock info
+    if (station && stockInfo) {
+      const availableActions = getAvailableActions(station, stockInfo);
+      // If current action is not available, set the first available action
+      if (!availableActions.includes(action) && availableActions.length > 0) {
+        setAction(availableActions[0]);
       }
     }
     
-    // Очищення при розмонтуванні компонента
+    // Cleanup on unmount
     return () => {
       if (html5QrcodeRef.current) {
         try {
@@ -62,7 +65,7 @@ export default function QRScanner() {
         }
       }
     };
-  }, [scanning, station, action]);
+  }, [scanning, station, action, stockInfo, hasCameraPermission]);
 
   // При зміні статусу "Новий товар", відновлюємо оригінальні дані
   useEffect(() => {
@@ -120,6 +123,8 @@ export default function QRScanner() {
           }
         }
         
+        // Set camera permission to true after successful initialization
+        setHasCameraPermission(true);
         startScanner(selectedDeviceId);
       } else {
         alert("Камери не знайдено на вашому пристрої!");
@@ -538,7 +543,7 @@ export default function QRScanner() {
           error={error}
           handleStationChange={handleStationChange}
           handleQuantityChange={handleQuantityChange}
-          actionOptions={actionOptions}
+          actionOptions={(station) => getAvailableActions(station, stockInfo)}
           isSubmitting={isSubmitting}
           isRefreshing={isRefreshing}
           refreshStockInfo={refreshStockInfo}
