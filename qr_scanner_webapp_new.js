@@ -706,9 +706,243 @@ export default function QRScanner() {
             <div className="option-group name-group">
               <label htmlFor="productName">Назва:</label>
               <input
-                id="productName"
-                type="text"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                className="input-field name-field"
-                readOnly={!isNewItem} // Редагування дозволено тільки для нових товарів
+  id="productName"
+  type="text"
+  value={productName}
+  onChange={(e) => setProductName(e.target.value)}
+  className="input-field name-field"
+  readOnly={!isNewItem} // Редагування дозволено тільки для нових товарів
+/>
+    <style jsx>{`<style jsx>{`
+  .container {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 20px;
+    text-align: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  }
+  h1 {
+    color: #333;
+    margin-bottom: 20px;
+  }
+  #reader {
+    width: 100%;
+    margin: 0 auto;
+    border-radius: 8px;
+    overflow: hidden;
+    min-height: 300px;
+    position: relative;
+    background-color: #f0f0f0;
+  }
+  #reader video {
+    border-radius: 8px;
+  }
+  .instruction {
+    color: #666;
+    margin-top: 15px;
+    font-size: 14px;
+  }
+  .result-container {
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  .result {
+    font-weight: bold;
+    margin-bottom: 15px;
+  }
+  .data {
+    word-break: break-all;
+    font-weight: normal;
+    color: #4285f4;
+  }
+  .options-container {
+    background-color: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 15px;
+    margin: 15px 0;
+  }
+  .option-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .option-group:last-child {
+    margin-bottom: 0;
+  }
+  .name-group {
+    align-items: flex-start;
+  }
+  label {
+    font-weight: 500;
+    color: #333;
+    margin-right: 10px;
+    white-space: nowrap;
+  }
+  .input-field {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+  .name-field {
+    height: auto;
+    min-height: 38px;
+    word-wrap: break-word;
+    text-align: left;
+    overflow-wrap: break-word;
+    white-space: normal;
+  }
+  .code-field {
+    background-color: #f5f5f5;
+    color: #666;
+  }
+  .quantity-field {
+    max-width: 100px;
+    width: 100px;
+  }
+  .checkbox-group {
+    display: flex;
+    align-items: center;
+  }
+  .checkbox-field {
+    width: auto;
+    max-width: none;
+    margin-left: auto;
+    transform: scale(1.5);
+  }
+  select.input-field {
+    background-color: white;
+  }
+  select.input-field:disabled {
+    background-color: #f5f5f5;
+    color: #888;
+  }
+  .status {
+    color: #4285f4;
+    padding: 10px;
+    background-color: #e8f0fe;
+    border-radius: 4px;
+    margin: 15px 0;
+  }
+  .error {
+    color: #d23f31;
+    padding: 10px;
+    background-color: #ffebee;
+    border-radius: 4px;
+    margin: 15px 0;
+    font-weight: 500;
+  }
+  .stock-info {
+    margin: 15px 0;
+    padding: 12px;
+    border-radius: 6px;
+    background-color: #f5f5f5;
+    text-align: left;
+  }
+  .stock-badge, .repair-info, .ordered-info, .production-info {
+    display: block;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+  .stock-badge {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+  }
+  .repair-info {
+    background-color: #fff3e0;
+    color: #e65100;
+  }
+  .ordered-info {
+    background-color: #e3f2fd;
+    color: #0d47a1;
+  }
+  .production-info {
+    background-color: #f0f4c3;
+    color: #827717;
+  }
+  .low-stock {
+    background-color: #ffebee;
+    color: #c62828;
+  }
+  .stock-count {
+    margin-left: 5px;
+    font-size: 18px;
+    font-weight: bold;
+  }
+  .stock-alert {
+    color: #d32f2f;
+    font-weight: bold;
+  }
+  .stock-warning {
+    color: #f57c00;
+    font-weight: bold;
+  }
+  .buttons-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .submit-btn {
+    background-color: #4285f4;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.2s;
+  }
+  .submit-btn:hover {
+    background-color: #3367d6;
+  }
+  .refresh-btn {
+    background-color: #fbbc05;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.2s;
+  }
+  .refresh-btn:hover {
+    background-color: #f0b400;
+  }
+  .scan-btn, .skip-btn {
+    background-color: #34a853;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.2s;
+    margin-top: 15px;
+  }
+  .scan-btn:hover, .skip-btn:hover {
+    background-color: #2d9249;
+  }
+  .skip-btn {
+    background-color: #ea4335;
+  }
+  .skip-btn:hover {
+    background-color: #d73027;
+  }
+  .submit-btn:disabled, .refresh-btn:disabled, .scan-btn:disabled, .skip-btn:disabled {
+    background-color: #a0a0a0;
+    cursor: not-allowed;
+  }
+`}</style>
+      </div>
+    </div>
+  );
+}
