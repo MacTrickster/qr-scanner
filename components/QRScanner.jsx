@@ -269,48 +269,29 @@ export default function QRScanner() {
 Натисніть "OK" щоб прийняти ${quantity} і додати корекцію на ${quantity - stockInfo.ordered}.
 Натисніть "Скасувати" щоб повернутися до форми.`)) {
         
-        // Відправляємо запити послідовно
         setIsSubmitting(true);
-        setStatus("Відправка даних прийняття замовлення...");
+        setStatus("Відправка даних...");
         
-        // 1. Прийняття повної кількості
+        // Надсилаємо один запит з повною кількістю
         const formData = {
           timestamp: new Date().toISOString(),
           productName: productName,
           productCode: isNewItem ? "" : productCode,
-          station: station,
+          station: "Склад",
           action: "Прийнято Замовлення",
           team: "",
-          quantity: String(quantity),
+          quantity: String(quantity), // Відправляємо повну кількість
           isNewItem: "Ні"
         };
         
         submitFormData(formData, "hidden-iframe");
         
-        // 2. Після затримки відправляємо корекцію
+        // Після відправки оновлюємо дані
         setTimeout(() => {
-          setStatus("Відправка даних корекції...");
-          
-          const correctionFormData = {
-            timestamp: new Date().toISOString(),
-            productName: productName,
-            productCode: isNewItem ? "" : productCode,
-            station: "Склад",
-            action: "Корекція",
-            team: "",
-            quantity: String(quantity - stockInfo.ordered),
-            isNewItem: "Ні"
-          };
-          
-          submitFormData(correctionFormData, "hidden-iframe");
-          
-          // Після всіх відправок
-          setTimeout(() => {
-            refreshStockInfo();
-            setStatus("Всі дані відправлено");
-            setIsSubmitting(false);
-          }, 3000);
-        }, 6000);
+          refreshStockInfo();
+          setStatus("Дані відправлено");
+          setIsSubmitting(false);
+        }, 3000);
         
         return true;
       } else {
