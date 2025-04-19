@@ -2,16 +2,21 @@
   "name": "qr-scanner",
   "version": "1.0.0",
   "dependencies": {
-    "react": "^18.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "next": "^13.0.0",
     "html5-qrcode": "^2.3.8",
-    "@mui/material": "^5.13.0",
-    "@mui/icons-material": "^5.11.16",
-    "@emotion/react": "^11.11.0",
-    "@emotion/styled": "^11.11.0"
+    "@mui/material": "^5.13.6",
+    "@mui/icons-material": "^5.13.6",
+    "@emotion/react": "^11.10.6",
+    "@emotion/styled": "^11.10.6"
   },
   "scripts": {
     "vercel-build": "next build",
     "start": "next dev"
+  },
+  "resolutions": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
   }
 }
