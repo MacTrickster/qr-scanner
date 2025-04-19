@@ -372,14 +372,12 @@ export default function QRScanner() {
       
       // Користувач підтвердив - надсилаємо два запити
       // 1. Прийняття повної кількості
-      setTimeout(() => {
-      sendOrderToGoogleSheets(quantity);
-      },3000);
-      
+      // sendOrderToGoogleSheets(quantity);
+      sendOrderToGoogleSheets(10);
       // 2. Корекція на різницю
       setTimeout(() => {
         sendCorrectionToGoogleSheets(quantity - stockInfo.ordered);
-      }, 3000); // Затримка в 3 секунди між запитами
+      }, 4000); // Затримка в 3 секунди між запитами
       
       return true; // Повертаємо true, оскільки запит(и) вже відправлені
     } else {
