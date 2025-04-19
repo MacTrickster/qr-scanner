@@ -1,5 +1,6 @@
 import React from "react";
-import { Button, Stack } from "@mui/material";
+import Button from '@mui/material/Button';
+import Stack from '@mui/material/Stack';
 import SendIcon from '@mui/icons-material/Send';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
