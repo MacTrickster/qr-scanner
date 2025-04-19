@@ -713,7 +713,7 @@ export default function QRScanner() {
   className="input-field name-field"
   readOnly={!isNewItem} // Редагування дозволено тільки для нових товарів
 />
-    <style jsx>{`<style jsx>{`
+    <style jsx>{`
   .container {
     max-width: 500px;
     margin: 0 auto;
