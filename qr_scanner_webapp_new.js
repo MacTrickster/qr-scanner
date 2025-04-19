@@ -2,11 +2,15 @@ import { Html5QrcodeScanner, Html5Qrcode } from "html5-qrcode";
 import React, { useEffect, useState, useRef } from "react";
 
 export default function QRScanner() {
+  // Стан для вибору методу введення
+  const [inputMethod, setInputMethod] = useState("choice"); // "choice", "manual", "scanner", "details"
+  
   const [qrData, setQrData] = useState("Скануй QR-код...");
   const [productName, setProductName] = useState("");
   const [originalProductName, setOriginalProductName] = useState(""); // Зберігаємо оригінальну назву з QR коду
   const [productCode, setProductCode] = useState("");
-  const [scanning, setScanning] = useState(true);
+  const [manualProductCode, setManualProductCode] = useState(""); // Для ручного введення
+  const [scanning, setScanning] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -23,7 +27,7 @@ export default function QRScanner() {
   const html5QrcodeRef = useRef(null);
   
   // Google Apps Script web app URL - REPLACE THIS WITH YOUR DEPLOYED SCRIPT URL
-  const scriptUrl = "https://script.google.com/macros/s/AKfycbweKRtwGAVucTbCPe6KL_XuNCDexxSvIAWesTOpmVBPNOoN0w3OE82-kRIXsT-liCldiw/exec";
+  const scriptUrl = "https://script.google.com/macros/s/AKfycbwkUUFfKyj8Y3DoZlOJA_ZhZ_Cq2TuMhI-841WB2AVeb98rKMwOmlt1Nu7qU95xXNxnQw/exec";
 
   // Визначення доступних дій для кожної станції
   const actionOptions = {
@@ -31,12 +35,81 @@ export default function QRScanner() {
     "Ремонт": ["Брак", "Склад"],
     "Виробництво": ["В Ремонт", "Залишки"]
   };
+  
+  // Вибір методу введення
+  const chooseManualEntry = () => {
+    setInputMethod("manual");
+    setError(null);
+    setStatus("");
+  };
+  
+  const chooseQrScanner = () => {
+    setInputMethod("scanner");
+    setScanning(true);
+    setError(null);
+    setStatus("");
+  };
+  
+  // Обробка ручного введення коду
+  const handleManualCodeSubmit = async () => {
+    if (!manualProductCode.trim()) {
+      setError("Будь ласка, введіть код товару.");
+      return;
+    }
+    
+    setIsRefreshing(true);
+    setStatus("Пошук товару...");
+    
+    try {
+      const stockData = await fetchStockInfo(manualProductCode);
+      
+      if (stockData && stockData.success && stockData.found) {
+        // Товар знайдено, переходимо до деталей
+        setProductCode(manualProductCode);
+        setProductName(stockData.productName || ""); // Отримуємо назву з API
+        setOriginalProductName(stockData.productName || "");
+        setStockInfo({
+          available: stockData.stock,
+          inRepair: stockData.inRepair || 0,
+          ordered: stockData.ordered || 0,
+          inProduction: stockData.inProduction || 0,
+          code: stockData.code,
+          found: stockData.found
+        });
+        setIsNewItem(false);
+        setInputMethod("details");
+        setStatus("");
+      } else {
+        // Товар не знайдено, пропонуємо створити новий
+        setError("Товар з таким кодом не знайдено в базі. Ви можете створити новий товар.");
+        setProductCode(manualProductCode);
+        setIsNewItem(true);
+      }
+    } catch (error) {
+      console.error("Помилка при пошуку товару:", error);
+      setError("Помилка при пошуку товару. Спробуйте знову.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+  
+  // Продовження після ручного введення для нового товару
+  const continueWithNewItem = () => {
+    if (!productName.trim()) {
+      setError("Будь ласка, введіть назву товару.");
+      return;
+    }
+    
+    setInputMethod("details");
+    setError(null);
+    setStatus("");
+  };
 
   useEffect(() => {
-    // Ініціалізуємо сканер при першому завантаженні компонента
-    if (scanning && !html5QrcodeRef.current) {
+    // Ініціалізуємо сканер при першому завантаженні компонента і коли scanning=true
+    if (scanning && inputMethod === "scanner" && !html5QrcodeRef.current) {
       initializeScanner();
-    } else if (scanning && html5QrcodeRef.current) {
+    } else if (scanning && inputMethod === "scanner" && html5QrcodeRef.current) {
       // Якщо сканер вже був ініціалізований, просто запускаємо його знову
       startScanner();
     }
@@ -62,7 +135,7 @@ export default function QRScanner() {
         }
       }
     };
-  }, [scanning, station, action]);
+  }, [scanning, station, action, inputMethod]);
 
   // При зміні статусу "Новий товар", відновлюємо оригінальну назву або дозволяємо редагування
   useEffect(() => {
@@ -78,39 +151,39 @@ export default function QRScanner() {
     }
   }, [quantity, station, action, stockInfo]);
 
-  // Функція для перевірки обмежень кількості з підтримкою Виробництва
-const validateQuantityConstraints = () => {
-  if (!stockInfo) return;
-  
-  // Перевірка для Складу
-  if (station === "Склад") {
-    if ((action === "В Ремонт" || action === "Видано") && stockInfo.available < quantity) {
-      setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
-      return false;
-    } else if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
-      setError(`Недостатньо замовленого товару! Замовлено: ${stockInfo.ordered}, запитано: ${quantity}`);
-      return false;
+  // Функція для перевірки обмежень кількості
+  const validateQuantityConstraints = () => {
+    if (!stockInfo) return;
+    
+    // Перевірка для Складу
+    if (station === "Склад") {
+      if ((action === "В Ремонт" || action === "Видано") && stockInfo.available < quantity) {
+        setError(`Недостатньо товару на складі! Наявно: ${stockInfo.available}, запитано: ${quantity}`);
+        return false;
+      } else if (action === "Прийнято Замовлення" && stockInfo.ordered < quantity) {
+        setError(`Недостатньо замовленого товару! Замовлено: ${stockInfo.ordered}, запитано: ${quantity}`);
+        return false;
+      }
     }
-  }
-  // Перевірка для Ремонту
-  else if (station === "Ремонт") {
-    if ((action === "Склад" || action === "Брак") && stockInfo.inRepair < quantity) {
-      setError(`Недостатньо товару в ремонті! Наявно: ${stockInfo.inRepair}, запитано: ${quantity}`);
-      return false;
+    // Перевірка для Ремонту
+    else if (station === "Ремонт") {
+      if ((action === "Склад" || action === "Брак") && stockInfo.inRepair < quantity) {
+        setError(`Недостатньо товару в ремонті! Наявно: ${stockInfo.inRepair}, запитано: ${quantity}`);
+        return false;
+      }
     }
-  }
-  // Перевірка для Виробництва - додана нова перевірка
-  else if (station === "Виробництво") {
-    if ((action === "В Ремонт" || action === "Залишки") && stockInfo.inProduction < quantity) {
-      setError(`Недостатньо товару в роботі! Наявно: ${stockInfo.inProduction}, запитано: ${quantity}`);
-      return false;
+    // Перевірка для Виробництва
+    else if (station === "Виробництво") {
+      if ((action === "В Ремонт" || action === "Залишки") && stockInfo.inProduction < quantity) {
+        setError(`Недостатньо товару в роботі! Наявно: ${stockInfo.inProduction}, запитано: ${quantity}`);
+        return false;
+      }
     }
-  }
-  
-  // Якщо всі перевірки пройдені, скидаємо помилку
-  setError(null);
-  return true;
-};
+    
+    // Якщо всі перевірки пройдені, скидаємо помилку
+    setError(null);
+    return true;
+  };
 
   // Функція для розбору QR-коду на назву та код товару
   const parseQrData = (qrText) => {
@@ -137,49 +210,49 @@ const validateQuantityConstraints = () => {
     }
   };
 
-// Оновлена функція fetchStockInfo, щоб отримувати дані "В роботі"
-const fetchStockInfo = async (code) => {
-  try {
-    // JSONP запит для обходу CORS
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      const callbackName = 'jsonpCallback_' + Math.random().toString(36).substr(2, 9);
-      
-      // Створюємо функцію зворотного виклику
-      window[callbackName] = (data) => {
-        document.body.removeChild(script);
-        delete window[callbackName];
-        resolve(data);
-      };
-      
-      // Обробка помилок
-      script.onerror = () => {
-        document.body.removeChild(script);
-        delete window[callbackName];
-        reject(new Error("Не вдалося отримати дані про наявність товару"));
-      };
-      
-      // Створюємо URL запиту
-      const url = `${scriptUrl}?action=getInventory&code=${encodeURIComponent(code)}&callback=${callbackName}`;
-      script.src = url;
-      
-      // Додаємо скрипт до документа
-      document.body.appendChild(script);
-      
-      // Встановлюємо таймаут для запиту
-      setTimeout(() => {
-        if (window[callbackName]) {
+  // Функція для отримання інформації про запаси
+  const fetchStockInfo = async (code) => {
+    try {
+      // JSONP запит для обходу CORS
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        const callbackName = 'jsonpCallback_' + Math.random().toString(36).substr(2, 9);
+        
+        // Створюємо функцію зворотного виклику
+        window[callbackName] = (data) => {
           document.body.removeChild(script);
           delete window[callbackName];
-          reject(new Error("Час очікування запиту вичерпано"));
-        }
-      }, 10000);
-    });
-  } catch (error) {
-    console.error("Помилка при отриманні даних про запаси:", error);
-    throw error;
-  }
-};
+          resolve(data);
+        };
+        
+        // Обробка помилок
+        script.onerror = () => {
+          document.body.removeChild(script);
+          delete window[callbackName];
+          reject(new Error("Не вдалося отримати дані про наявність товару"));
+        };
+        
+        // Створюємо URL запиту
+        const url = `${scriptUrl}?action=getInventory&code=${encodeURIComponent(code)}&callback=${callbackName}`;
+        script.src = url;
+        
+        // Додаємо скрипт до документа
+        document.body.appendChild(script);
+        
+        // Встановлюємо таймаут для запиту
+        setTimeout(() => {
+          if (window[callbackName]) {
+            document.body.removeChild(script);
+            delete window[callbackName];
+            reject(new Error("Час очікування запиту вичерпано"));
+          }
+        }, 10000);
+      });
+    } catch (error) {
+      console.error("Помилка при отриманні даних про запаси:", error);
+      throw error;
+    }
+  };
 
   const initializeScanner = async () => {
     try {
@@ -207,9 +280,11 @@ const fetchStockInfo = async (code) => {
         startScanner(selectedDeviceId);
       } else {
         alert("Камери не знайдено на вашому пристрої!");
+        setInputMethod("manual"); // Повертаємось до ручного введення, якщо немає камери
       }
     } catch (err) {
       console.error("Помилка ініціалізації сканера:", err);
+      setInputMethod("manual"); // Повертаємось до ручного введення при помилці
     }
   };
 
@@ -262,6 +337,7 @@ const fetchStockInfo = async (code) => {
           qrCodeErrorCallback
         ).catch((err2) => {
           console.error("Помилка запуску камери за замовчуванням:", err2);
+          setInputMethod("manual"); // Повертаємось до ручного введення при помилці
         });
       });
     } else {
@@ -273,6 +349,7 @@ const fetchStockInfo = async (code) => {
         qrCodeErrorCallback
       ).catch((err) => {
         console.error("Помилка запуску камери за замовчуванням:", err);
+        setInputMethod("manual"); // Повертаємось до ручного введення при помилці
       });
     }
   };
@@ -290,49 +367,53 @@ const fetchStockInfo = async (code) => {
     // Якщо є код товару, спробуйте отримати інформацію про запаси
     if (parsedData.productCode) {
       await refreshStockInfo(parsedData.productCode);
+      setInputMethod("details"); // Перехід до деталей товару після успішного сканування
+    } else {
+      setError("QR-код не містить коду товару. Спробуйте інший QR-код або введіть код вручну.");
+      setInputMethod("choice"); // Повернення до вибору методу, якщо QR-код не містить потрібної інформації
     }
   };
 
-// Оновлена функція refreshStockInfo для збереження даних про кількість "В роботі"
-const refreshStockInfo = async (code = null) => {
-  const productCodeToUse = code || productCode;
-  if (!productCodeToUse) {
-    setError("Код товару відсутній. Спочатку відскануйте QR-код.");
-    return;
-  }
+  // Функція для оновлення інформації про запаси
+  const refreshStockInfo = async (code = null) => {
+    const productCodeToUse = code || productCode;
+    if (!productCodeToUse) {
+      setError("Код товару відсутній. Спочатку відскануйте QR-код або введіть код вручну.");
+      return;
+    }
 
-  try {
-    setIsRefreshing(true);
-    setStatus("Отримання даних про наявність...");
-    const stockData = await fetchStockInfo(productCodeToUse);
-    
-    if (stockData && stockData.success) {
-      setStockInfo({
-        available: stockData.stock,            // Наявна кількість на складі (колонка B)
-        inRepair: stockData.inRepair || 0,     // Кількість в ремонті (колонка C)
-        ordered: stockData.ordered || 0,       // Замовлено (колонка D)
-        inProduction: stockData.inProduction || 0, // В роботі (колонка E)
-        code: stockData.code,
-        found: stockData.found
-      });
-      setStatus("");
+    try {
+      setIsRefreshing(true);
+      setStatus("Отримання даних про наявність...");
+      const stockData = await fetchStockInfo(productCodeToUse);
       
-      // Перевіряємо обмеження кількості з новими даними
-      setTimeout(() => validateQuantityConstraints(), 100);
-    } else {
+      if (stockData && stockData.success) {
+        setStockInfo({
+          available: stockData.stock,            // Наявна кількість на складі (колонка B)
+          inRepair: stockData.inRepair || 0,     // Кількість в ремонті (колонка C)
+          ordered: stockData.ordered || 0,       // Замовлено (колонка D)
+          inProduction: stockData.inProduction || 0, // В роботі (колонка E)
+          code: stockData.code,
+          found: stockData.found
+        });
+        setStatus("");
+        
+        // Перевіряємо обмеження кількості з новими даними
+        setTimeout(() => validateQuantityConstraints(), 100);
+      } else {
+        setStockInfo(null);
+        setStatus("");
+        setError("Не вдалося отримати дані про наявність товару");
+      }
+    } catch (error) {
+      console.error("Помилка при отриманні даних про запаси:", error);
       setStockInfo(null);
       setStatus("");
-      setError("Не вдалося отримати дані про наявність товару");
+      setError("Помилка при отриманні даних про запаси");
+    } finally {
+      setIsRefreshing(false);
     }
-  } catch (error) {
-    console.error("Помилка при отриманні даних про запаси:", error);
-    setStockInfo(null);
-    setStatus("");
-    setError("Помилка при отриманні даних про запаси");
-  } finally {
-    setIsRefreshing(false);
-  }
-};
+  };
 
   // Form submission approach that bypasses CORS
   const sendToGoogleSheets = () => {
@@ -427,13 +508,15 @@ const refreshStockInfo = async (code = null) => {
   };
   
   const scanAgain = () => {
-    setScanning(true);
+    setInputMethod("choice"); // Повертаємось до вибору методу
+    setScanning(false);
     setStatus("");
     setError(null);
     setQrData("Скануй QR-код...");
     setProductName("");
     setOriginalProductName("");
     setProductCode("");
+    setManualProductCode("");
     setStation("Склад");
     setAction(actionOptions["Склад"][0] || "");
     setQuantity(1);
@@ -495,10 +578,274 @@ const refreshStockInfo = async (code = null) => {
           return true;
         }
       }
-      // TODO: Додати перевірки для Виробництва
+      // Виробництво
+      else if (station === "Виробництво") {
+        if ((action === "В Ремонт" || action === "Залишки") && stockInfo.inProduction < quantity) {
+          return true;
+        }
+      }
     }
     
     return false;
+  };
+
+  // Рендеринг різних екранів на основі inputMethod
+  const renderContent = () => {
+    switch (inputMethod) {
+      case "choice":
+        // Екран вибору методу введення
+        return (
+          <div className="choice-container">
+            <h2>Оберіть спосіб введення даних:</h2>
+            <div className="method-buttons">
+              <button className="manual-btn" onClick={chooseManualEntry}>
+                ⌨️ Введення коду вручну
+              </button>
+              <button className="scan-btn" onClick={chooseQrScanner}>
+                📷 Сканувати QR-код
+              </button>
+            </div>
+          </div>
+        );
+        
+      case "manual":
+        // Екран ручного введення коду
+        return (
+          <div className="manual-entry-container">
+            <h2>Введіть код товару:</h2>
+            <div className="manual-input-group">
+              <input
+                type="text"
+                value={manualProductCode}
+                onChange={(e) => setManualProductCode(e.target.value)}
+                className="input-field code-field"
+                placeholder="Введіть код товару"
+              />
+              <button 
+                onClick={handleManualCodeSubmit}
+                disabled={isRefreshing || !manualProductCode.trim()}
+                className="submit-btn"
+              >
+                {isRefreshing ? "Пошук..." : "Пошук товару"}
+              </button>
+            </div>
+            
+            {isNewItem && (
+              <div className="new-item-container">
+                <p>Створення нового товару з кодом: <strong>{productCode}</strong></p>
+                <div className="manual-input-group">
+                  <label htmlFor="newProductName">Назва товару:</label>
+                  <input
+                    id="newProductName"
+                    type="text"
+                    value={productName}
+                    onChange={(e) => setProductName(e.target.value)}
+                    className="input-field name-field"
+                    placeholder="Введіть назву товару"
+                  />
+                </div>
+                <button 
+                  onClick={continueWithNewItem}
+                  disabled={!productName.trim()}
+                  className="continue-btn"
+                >
+                  Продовжити
+                </button>
+              </div>
+            )}
+            
+            <button onClick={scanAgain} className="back-btn">
+              ⬅️ Назад
+            </button>
+          </div>
+        );
+        
+      case "scanner":
+        // Екран сканера QR-коду
+        return (
+          <div>
+            <div id="reader" ref={scannerRef}></div>
+            <p className="instruction">Наведіть камеру на QR-код для сканування</p>
+            <button onClick={scanAgain} className="back-btn">
+              ⬅️ Назад
+            </button>
+          </div>
+        );
+        
+      case "details":
+        // Екран деталей і обробки товару (після сканування або ручного введення)
+        return (
+          <div className="result-container">
+            <div className="options-container">
+              {/* Назва товару */}
+              <div className="option-group name-group">
+                <label htmlFor="productName">Назва:</label>
+                <input
+                  id="productName"
+                  type="text"
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                  className="input-field name-field"
+                  readOnly={!isNewItem} // Редагування дозволено тільки для нових товарів
+                />
+              </div>
+              
+              {/* Галочка "Новий товар" */}
+              <div className="option-group checkbox-group">
+                <label htmlFor="isNewItem">Новий товар:</label>
+                <input
+                  id="isNewItem"
+                  type="checkbox"
+                  checked={isNewItem}
+                  onChange={handleNewItemChange}
+                  className="checkbox-field"
+                />
+              </div>
+              
+              {/* Код товару - завжди тільки для читання */}
+              <div className="option-group">
+                <label htmlFor="productCode">Код:</label>
+                <input
+                  id="productCode"
+                  type="text"
+                  value={productCode}
+                  className="input-field code-field"
+                  readOnly
+                />
+              </div>
+              
+              {/* Відображення інформації про запаси */}
+              {stockInfo && (
+                <div className="stock-info">
+                  <div className={`stock-badge ${stockInfo.available < 5 ? 'low-stock' : 'normal-stock'}`}>
+                    <span className="stock-label">Наявність на складі:</span>
+                    <span className="stock-count">{stockInfo.available}</span>
+                    {stockInfo.available === 0 && <span className="stock-alert"> (Немає на складі!)</span>}
+                    {stockInfo.available > 0 && stockInfo.available < 5 && <span className="stock-warning"> (Мало на складі!)</span>}
+                  </div>
+                  
+                  {/* Додаємо інформацію про кількість в ремонті */}
+                  <div className="repair-info">
+                    <span className="stock-label">В ремонті:</span>
+                    <span className="stock-count">{stockInfo.inRepair}</span>
+                  </div>
+                  
+                  {/* Додаємо інформацію про замовлену кількість */}
+                  <div className="ordered-info">
+                    <span className="stock-label">Замовлено:</span>
+                    <span className="stock-count">{stockInfo.ordered}</span>
+                  </div>
+                  
+                  {/* Додаємо інформацію про кількість "В роботі" */}
+                  <div className="production-info">
+                    <span className="stock-label">В роботі:</span>
+                    <span className="stock-count">{stockInfo.inProduction}</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Станція */}
+              <div className="option-group">
+                <label htmlFor="station">Станція:</label>
+                <select 
+                  id="station" 
+                  value={station} 
+                  onChange={handleStationChange}
+                  className="input-field"
+                >
+                  <option value="Склад">Склад</option>
+                  <option value="Ремонт">Ремонт</option>
+                  <option value="Виробництво">Виробництво</option>
+                </select>
+              </div>
+              
+              {/* Дія */}
+              <div className="option-group">
+                <label htmlFor="action">Дія:</label>
+                <select 
+                  id="action" 
+                  value={action} 
+                  onChange={(e) => setAction(e.target.value)}
+                  className="input-field"
+                  disabled={!station || !actionOptions[station] || actionOptions[station].length === 0}
+                >
+                  {station && actionOptions[station]?.map((option, index) => (
+                    <option key={index} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Показувати вибір команди тільки якщо вибрано "Видано" */}
+              {action === "Видано" && (
+                <div className="option-group">
+                  <label htmlFor="team">Команда:</label>
+                  <select 
+                    id="team" 
+                    value={team} 
+                    onChange={(e) => setTeam(e.target.value)}
+                    className="input-field"
+                  >
+                    <option value="Команді A">Команді A</option>
+                    <option value="Команді B">Команді B</option>
+                    <option value="Команді C">Команді C</option>
+                    <option value="Команді D">Команді D</option>
+                  </select>
+                </div>
+              )}
+              
+              {/* Кількість */}
+              <div className="option-group">
+                <label htmlFor="quantity">Кількість:</label>
+                <input 
+                  id="quantity" 
+                  type="number" 
+                  min="1" 
+                  value={quantity} 
+                  onChange={handleQuantityChange}
+                  className="input-field quantity-field"
+                />
+              </div>
+            </div>
+            
+            {/* Відображення статусу відправки */}
+            {status && <p className="status">{status}</p>}
+            
+            {/* Відображення помилок */}
+            {error && <p className="error">{error}</p>}
+            
+            <div className="buttons-container">
+              <button 
+                className="submit-btn" 
+                onClick={sendToGoogleSheets}
+                disabled={isSubmitDisabled()}
+              >
+                {isSubmitting ? "Відправка..." : "📤 Відправити дані"}
+              </button>
+              
+              <button 
+                className="refresh-btn" 
+                onClick={() => refreshStockInfo()}
+                disabled={isSubmitting || isRefreshing || (!productCode && !isNewItem)}
+              >
+                {isRefreshing ? "Оновлення..." : "🔄 Оновити дані"}
+              </button>
+              
+              <button 
+                className="scan-btn" 
+                onClick={scanAgain}
+                disabled={isSubmitting || isRefreshing}
+              >
+                📷 Сканувати інший QR-код
+              </button>
+            </div>
+          </div>
+        );
+        
+      default:
+        return <div>Помилка: Невідомий режим</div>;
+    }
   };
 
   return (
@@ -519,172 +866,12 @@ const refreshStockInfo = async (code = null) => {
         }}
       />
       
-      {scanning ? (
-        <div>
-          <div id="reader" ref={scannerRef}></div>
-          <p className="instruction">Наведіть камеру на QR-код для сканування</p>
-        </div>
-      ) : (
-        <div className="result-container">
-          <div className="options-container">
-            {/* Назва товару */}
-            <div className="option-group name-group">
-              <label htmlFor="productName">Назва:</label>
-              <input
-                id="productName"
-                type="text"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                className="input-field name-field"
-                readOnly={!isNewItem} // Редагування дозволено тільки для нових товарів
-              />
-            </div>
-            
-            {/* Галочка "Новий товар" */}
-            <div className="option-group checkbox-group">
-              <label htmlFor="isNewItem">Новий товар:</label>
-              <input
-                id="isNewItem"
-                type="checkbox"
-                checked={isNewItem}
-                onChange={handleNewItemChange}
-                className="checkbox-field"
-              />
-            </div>
-            
-            {/* Код товару - завжди тільки для читання */}
-            <div className="option-group">
-              <label htmlFor="productCode">Код:</label>
-              <input
-                id="productCode"
-                type="text"
-                value={productCode}
-                className="input-field code-field"
-                readOnly
-              />
-            </div>
-            
-            {/* Відображення інформації про запаси */}
-            {stockInfo && (
-              <div className="stock-info">
-                <div className={`stock-badge ${stockInfo.available < 5 ? 'low-stock' : 'normal-stock'}`}>
-                  <span className="stock-label">Наявність на складі:</span>
-                  <span className="stock-count">{stockInfo.available}</span>
-                  {stockInfo.available === 0 && <span className="stock-alert"> (Немає на складі!)</span>}
-                  {stockInfo.available > 0 && stockInfo.available < 5 && <span className="stock-warning"> (Мало на складі!)</span>}
-                </div>
-                
-                {/* Додаємо інформацію про кількість в ремонті */}
-                <div className="repair-info">
-                  <span className="stock-label">В ремонті:</span>
-                  <span className="stock-count">{stockInfo.inRepair}</span>
-                </div>
-                
-                {/* Додаємо інформацію про замовлену кількість */}
-                <div className="ordered-info">
-                  <span className="stock-label">Замовлено:</span>
-                  <span className="stock-count">{stockInfo.ordered}</span>
-                </div>
-              </div>
-            )}
-            
-            {/* Станція */}
-            <div className="option-group">
-              <label htmlFor="station">Станція:</label>
-              <select 
-                id="station" 
-                value={station} 
-                onChange={handleStationChange}
-                className="input-field"
-              >
-                <option value="Склад">Склад</option>
-                <option value="Ремонт">Ремонт</option>
-                <option value="Виробництво">Виробництво</option>
-              </select>
-            </div>
-            
-            {/* Дія */}
-            <div className="option-group">
-              <label htmlFor="action">Дія:</label>
-              <select 
-                id="action" 
-                value={action} 
-                onChange={(e) => setAction(e.target.value)}
-                className="input-field"
-                disabled={!station || !actionOptions[station] || actionOptions[station].length === 0}
-              >
-                {station && actionOptions[station]?.map((option, index) => (
-                  <option key={index} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Показувати вибір команди тільки якщо вибрано "Видано" */}
-            {action === "Видано" && (
-              <div className="option-group">
-                <label htmlFor="team">Команда:</label>
-                <select 
-                  id="team" 
-                  value={team} 
-                  onChange={(e) => setTeam(e.target.value)}
-                  className="input-field"
-                >
-                  <option value="Команді A">Команді A</option>
-                  <option value="Команді B">Команді B</option>
-                  <option value="Команді C">Команді C</option>
-                  <option value="Команді D">Команді D</option>
-                </select>
-              </div>
-            )}
-            
-            {/* Кількість */}
-            <div className="option-group">
-              <label htmlFor="quantity">Кількість:</label>
-              <input 
-                id="quantity" 
-                type="number" 
-                min="1" 
-                value={quantity} 
-                onChange={handleQuantityChange}
-                className="input-field quantity-field"
-              />
-            </div>
-          </div>
-          
-          {/* Відображення статусу відправки */}
-          {status && <p className="status">{status}</p>}
-          
-          {/* Відображення помилок */}
-          {error && <p className="error">{error}</p>}
-          
-          <div className="buttons-container">
-            <button 
-              className="submit-btn" 
-              onClick={sendToGoogleSheets}
-              disabled={isSubmitDisabled()}
-            >
-              {isSubmitting ? "Відправка..." : "📤 Відправити дані"}
-            </button>
-            
-            <button 
-              className="refresh-btn" 
-              onClick={() => refreshStockInfo()}
-              disabled={isSubmitting || isRefreshing || (!productCode && !isNewItem)}
-            >
-              {isRefreshing ? "Оновлення..." : "🔄 Оновити дані"}
-            </button>
-            
-            <button 
-              className="scan-btn" 
-              onClick={scanAgain}
-              disabled={isSubmitting || isRefreshing}
-            >
-              📷 Сканувати інший QR-код
-            </button>
-          </div>
-        </div>
+      {/* Основний вміст - змінюється на основі inputMethod */}
+      {renderContent()}
+      
+      {/* Відображення помилок загальних для всіх екранів */}
+      {error && inputMethod !== "details" && inputMethod !== "manual" && (
+        <p className="error">{error}</p>
       )}
       
       <style jsx>{`
@@ -695,7 +882,7 @@ const refreshStockInfo = async (code = null) => {
           text-align: center;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
         }
-        h1 {
+        h1, h2 {
           color: #333;
           margin-bottom: 20px;
         }
@@ -722,6 +909,43 @@ const refreshStockInfo = async (code = null) => {
           padding: 20px;
           margin-top: 20px;
           box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .choice-container {
+          background-color: #f9f9f9;
+          border-radius: 8px;
+          padding: 20px;
+          margin-top: 20px;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .manual-entry-container {
+          background-color: #f9f9f9;
+          border-radius: 8px;
+          padding: 20px;
+          margin-top: 20px;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .new-item-container {
+          background-color: #fff;
+          border: 1px solid #e0e0e0;
+          border-radius: 6px;
+          padding: 15px;
+          margin: 15px 0;
+        }
+        .method-buttons {
+          display: flex;
+          flex-direction: column;
+          gap: 15px;
+          margin-top: 20px;
+        }
+        .manual-input-group {
+          display: flex;
+          align-items: center;
+          margin-bottom: 15px;
+          gap: 10px;
+        }
+        .manual-input-group label {
+          min-width: 120px;
+          text-align: left;
         }
         .result {
           font-weight: bold;
@@ -819,7 +1043,7 @@ const refreshStockInfo = async (code = null) => {
           background-color: #f5f5f5;
           text-align: left;
         }
-        .stock-badge, .repair-info, .ordered-info {
+        .stock-badge, .repair-info, .ordered-info, .production-info {
           display: block;
           padding: 5px 10px;
           border-radius: 4px;
@@ -838,6 +1062,10 @@ const refreshStockInfo = async (code = null) => {
         .ordered-info {
           background-color: #e3f2fd;
           color: #0d47a1;
+        }
+        .production-info {
+          background-color: #f0f4c3;
+          color: #827717;
         }
         .low-stock {
           background-color: #ffebee;
@@ -861,7 +1089,7 @@ const refreshStockInfo = async (code = null) => {
           flex-direction: column;
           gap: 10px;
         }
-        .submit-btn {
+        .submit-btn, .manual-btn, .continue-btn {
           background-color: #4285f4;
           color: white;
           border: none;
@@ -871,7 +1099,7 @@ const refreshStockInfo = async (code = null) => {
           font-size: 16px;
           transition: background-color 0.2s;
         }
-        .submit-btn:hover {
+        .submit-btn:hover, .manual-btn:hover, .continue-btn:hover {
           background-color: #3367d6;
         }
         .refresh-btn {
@@ -900,7 +1128,21 @@ const refreshStockInfo = async (code = null) => {
         .scan-btn:hover {
           background-color: #2d9249;
         }
-        .submit-btn:disabled, .refresh-btn:disabled, .scan-btn:disabled {
+        .back-btn {
+          background-color: #9e9e9e;
+          color: white;
+          border: none;
+          padding: 10px 15px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+          transition: background-color 0.2s;
+          margin-top: 15px;
+        }
+        .back-btn:hover {
+          background-color: #757575;
+        }
+        .submit-btn:disabled, .refresh-btn:disabled, .scan-btn:disabled, .manual-btn:disabled, .continue-btn:disabled, .back-btn:disabled {
           background-color: #a0a0a0;
           cursor: not-allowed;
         }
