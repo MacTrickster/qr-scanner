@@ -41,9 +41,9 @@ export default function QRScanner() {
       initializeScanner();
     }
     
-    // Update available actions based on stock info
-    if (station && stockInfo) {
-      const availableActions = getAvailableActions(station, stockInfo);
+    // Update available actions based on station change
+    if (station) {
+      const availableActions = getAvailableActions(station);
       if (!availableActions.includes(action) && availableActions.length > 0) {
         setAction(availableActions[0]);
       }
@@ -64,7 +64,7 @@ export default function QRScanner() {
         }
       }
     };
-  }, [scanning, station, action, stockInfo]);
+  }, [scanning, station, action]);
 
   // При зміні статусу "Новий товар", відновлюємо оригінальні дані
   useEffect(() => {
@@ -447,10 +447,9 @@ export default function QRScanner() {
     const newStation = e.target.value;
     setStation(newStation);
     // Встановлюємо першу доступну опцію для "Дія"
-    if (actionOptions[newStation] && actionOptions[newStation].length > 0) {
-      setAction(actionOptions[newStation][0]);
-    } else {
-      setAction("");
+    const actions = getAvailableActions(newStation);
+    if (actions.length > 0) {
+      setAction(actions[0]);
     }
   };
 

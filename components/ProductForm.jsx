@@ -103,9 +103,8 @@ export default function ProductForm({
             value={action} 
             onChange={(e) => setAction(e.target.value)}
             className="input-field"
-            disabled={!station || !actionOptions[station] || actionOptions[station].length === 0}
           >
-            {station && actionOptions[station]?.map((option, index) => (
+            {actionOptions(station)?.map((option, index) => (
               <option key={index} value={option}>
                 {option}
               </option>
