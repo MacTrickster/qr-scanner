@@ -17,7 +17,7 @@ export default function FormControls({
         onClick={sendToGoogleSheets}
         disabled={isSubmitDisabled()}
       >
-        {isSubmitting ? "Відправка..." : "📤 Відправити дані"}
+        {isSubmitting ? "⏳ Відправка..." : "📤 Відправити дані"}
       </button>
       
       {!isNewItem && (
@@ -26,7 +26,7 @@ export default function FormControls({
           onClick={() => refreshStockInfo()}
           disabled={isSubmitting || isRefreshing || (!productCode && !isNewItem) || productCode === "XXXXXX"}
         >
-          {isRefreshing ? "Оновлення..." : "🔄 Оновити дані"}
+          {isRefreshing ? "⏳ Оновлення..." : "🔄 Оновити дані"}
         </button>
       )}
       
