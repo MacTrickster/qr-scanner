@@ -1,12 +1,11 @@
 import React, { useEffect, useState, useRef } from "react";
 import ScannerView from "./ScannerView";
 import ProductForm from "./ProductForm";
-import { fetchStockInfo } from "../utils/api";
+import LastEvents from "./LastEvents";
+import { fetchStockInfo, fetchLastEvents } from "../utils/api";
 import { parseQrData } from "../utils/qrParser";
 import { actionOptions, validateQuantityConstraints, getAvailableActions } from "../utils/stockUtils";
 import { submitFormData } from "../utils/formUtils";
-
-const scriptUrl = "https://script.google.com/macros/s/AKfycbxPvG_dVuA5CO3R8qKj2TwQWPyyq2cKvWZQaZ865pn3Aoym5Nmuv4iG_3yeT3_hlueJGQ/exec";
 
 export default function QRScanner() {
   // Add new state for camera permission
@@ -29,6 +28,7 @@ export default function QRScanner() {
   const [isNewItem, setIsNewItem] = useState(false);
   const [stockInfo, setStockInfo] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastEvents, setLastEvents] = useState([]);
   
   // Refs
   const iframeRef = useRef(null);
@@ -80,6 +80,11 @@ export default function QRScanner() {
       validateQuantityConstraints(station, action, quantity, stockInfo, setError);
     }
   }, [quantity, station, action, stockInfo]);
+
+  // Додаємо ефект для початкового завантаження подій
+  useEffect(() => {
+    refreshLastEvents();
+  }, []);
 
   // Функція для пропуску сканера і створення нового товару
   const skipScanner = () => {
@@ -245,6 +250,18 @@ export default function QRScanner() {
     }
   };
 
+  // Функція для оновлення останніх подій
+  const refreshLastEvents = async () => {
+    try {
+      const data = await fetchLastEvents();
+      if (data && data.success && data.events) {
+        setLastEvents(data.events);
+      }
+    } catch (error) {
+      console.error("Помилка при отриманні останніх подій:", error);
+    }
+  };
+
   // Функція для перевірки прийняття замовлення
   const checkOrderReceived = () => {
     // Перевірка чи це прийняття замовлення і чи перевищує кількість замовлену
@@ -296,6 +313,7 @@ export default function QRScanner() {
           // 3. Після всіх відправок оновлюємо дані
           setTimeout(() => {
             refreshStockInfo();
+            refreshLastEvents();
             setStatus("Всі дані відправлено");
             setIsSubmitting(false);
           }, 3000);
@@ -332,6 +350,7 @@ export default function QRScanner() {
     // Set timeout for status update
     setTimeout(() => {
       refreshStockInfo();
+      refreshLastEvents();
       setStatus("Дані відправлено");
       setIsSubmitting(false);
     }, 3000);
@@ -359,6 +378,7 @@ export default function QRScanner() {
     // Set timeout for status update
     setTimeout(() => {
       refreshStockInfo();
+      refreshLastEvents();
       setStatus("Дані відправлено");
       setIsSubmitting(false);
     }, 3000);
@@ -406,6 +426,9 @@ export default function QRScanner() {
       if (!isNewItem && productCode !== "XXXXXX") {
         refreshStockInfo();
       }
+      
+      // Оновлюємо останні події
+      refreshLastEvents();
       
       setStatus("Дані відправлено");
       setIsSubmitting(false);
@@ -512,32 +535,35 @@ export default function QRScanner() {
           skipScanner={skipScanner}
         />
       ) : (
-        <ProductForm 
-          productName={productName}
-          setProductName={setProductName}
-          productCode={productCode}
-          setProductCode={setProductCode}
-          isNewItem={isNewItem}
-          setIsNewItem={(e) => handleNewItemChange(e)}
-          stockInfo={stockInfo}
-          station={station}
-          action={action}
-          setAction={setAction}
-          quantity={quantity}
-          team={team}
-          setTeam={setTeam}
-          status={status}
-          error={error}
-          handleStationChange={handleStationChange}
-          handleQuantityChange={handleQuantityChange}
-          actionOptions={(station) => getAvailableActions(station, stockInfo)}
-          isSubmitting={isSubmitting}
-          isRefreshing={isRefreshing}
-          refreshStockInfo={refreshStockInfo}
-          sendToGoogleSheets={sendToGoogleSheets}
-          scanAgain={scanAgain}
-          isSubmitDisabled={isSubmitDisabled}
-        />
+        <>
+          <ProductForm 
+            productName={productName}
+            setProductName={setProductName}
+            productCode={productCode}
+            setProductCode={setProductCode}
+            isNewItem={isNewItem}
+            setIsNewItem={(e) => handleNewItemChange(e)}
+            stockInfo={stockInfo}
+            station={station}
+            action={action}
+            setAction={setAction}
+            quantity={quantity}
+            team={team}
+            setTeam={setTeam}
+            status={status}
+            error={error}
+            handleStationChange={handleStationChange}
+            handleQuantityChange={handleQuantityChange}
+            actionOptions={(station) => getAvailableActions(station, stockInfo)}
+            isSubmitting={isSubmitting}
+            isRefreshing={isRefreshing}
+            refreshStockInfo={refreshStockInfo}
+            sendToGoogleSheets={sendToGoogleSheets}
+            scanAgain={scanAgain}
+            isSubmitDisabled={isSubmitDisabled}
+          />
+          <LastEvents events={lastEvents} />
+        </>
       )}
     </div>
   );

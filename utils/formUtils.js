@@ -1,5 +1,5 @@
 // URL вашого Google Apps Script
-const scriptUrl = "https://script.google.com/macros/s/AKfycbxPvG_dVuA5CO3R8qKj2TwQWPyyq2cKvWZQaZ865pn3Aoym5Nmuv4iG_3yeT3_hlueJGQ/exec";
+const scriptUrl = "https://script.google.com/macros/s/AKfycbznzh5d2dszUzCfvs6JzmT3ujEHuLE3AauPsW6EuMp8hOCG9mYRR96gwlFfDy26gN2f8Q/exec";
 
 // Функція для відправки форми до Google Sheets
 export const submitFormData = (formData, targetFrame = "hidden-iframe") => {

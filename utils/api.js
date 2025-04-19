@@ -1,5 +1,5 @@
 // URL вашого Google Apps Script
-const scriptUrl = "https://script.google.com/macros/s/AKfycbxPvG_dVuA5CO3R8qKj2TwQWPyyq2cKvWZQaZ865pn3Aoym5Nmuv4iG_3yeT3_hlueJGQ/exec";
+const scriptUrl = "https://script.google.com/macros/s/AKfycbznzh5d2dszUzCfvs6JzmT3ujEHuLE3AauPsW6EuMp8hOCG9mYRR96gwlFfDy26gN2f8Q/exec";
 
 // Функція для отримання інформації про запаси
 export const fetchStockInfo = async (code) => {
@@ -41,6 +41,44 @@ export const fetchStockInfo = async (code) => {
     });
   } catch (error) {
     console.error("Помилка при отриманні даних про запаси:", error);
+    throw error;
+  }
+};
+
+// Функція для отримання останніх подій
+export const fetchLastEvents = async () => {
+  try {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      const callbackName = 'jsonpCallback_' + Math.random().toString(36).substr(2, 9);
+      
+      window[callbackName] = (data) => {
+        document.body.removeChild(script);
+        delete window[callbackName];
+        resolve(data);
+      };
+      
+      script.onerror = () => {
+        document.body.removeChild(script);
+        delete window[callbackName];
+        reject(new Error("Не вдалося отримати останні події"));
+      };
+      
+      const url = `${scriptUrl}?action=getLastEvents&callback=${callbackName}`;
+      script.src = url;
+      
+      document.body.appendChild(script);
+      
+      setTimeout(() => {
+        if (window[callbackName]) {
+          document.body.removeChild(script);
+          delete window[callbackName];
+          reject(new Error("Час очікування запиту вичерпано"));
+        }
+      }, 10000);
+    });
+  } catch (error) {
+    console.error("Помилка при отриманні останніх подій:", error);
     throw error;
   }
 };
