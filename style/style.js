@@ -333,6 +333,87 @@ export const appStyles = `
     font-size: 13px;
   }
 
+  .last-events-container {
+    margin-top: 20px;
+    background-color: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e8eaed;
+  }
+
+  .last-events-header {
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e8eaed;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+
+  .last-events-header:hover {
+    background-color: #f1f3f4;
+  }
+
+  .header-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #1a73e8;
+    font-weight: 500;
+  }
+
+  .history-icon {
+    color: #1a73e8;
+  }
+
+  .expand-button {
+    color: #5f6368;
+  }
+
+  .events-list {
+    padding: 16px;
+  }
+
+  .event-item {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 8px;
+    border: 1px solid #e8eaed;
+  }
+
+  .event-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .event-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-size: 14px;
+  }
+
+  .event-row:last-child {
+    margin-bottom: 0;
+  }
+
+  .event-label {
+    color: #5f6368;
+    font-weight: 500;
+  }
+
+  .event-value {
+    color: #202124;
+  }
+
+  .code-value {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    letter-spacing: 0.5px;
+  }
+
   @keyframes fadeIn {
     from {
       opacity: 0;
